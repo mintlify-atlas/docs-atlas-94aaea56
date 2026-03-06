@@ -1,0 +1,406 @@
+---
+title: "Document Management"
+description: "Version-controlled document management with AI-powered search"
+icon: "file-lines"
+---
+
+## Overview
+
+The Document Management module provides comprehensive document control with revision tracking, metadata management, AI-powered search, and collaborative features like PDF annotations.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Version Control" icon="code-branch">
+    Track document revisions with complete history
+  </Card>
+  <Card title="AI Search" icon="sparkles">
+    Semantic search using Google Gemini embeddings
+  </Card>
+  <Card title="PDF Annotations" icon="comment">
+    Add comments and pins directly on PDF pages
+  </Card>
+  <Card title="Metadata Management" icon="tags">
+    Flexible custom metadata fields
+  </Card>
+  <Card title="Automated Processing" icon="robot">
+    n8n integration for text extraction and analysis
+  </Card>
+  <Card title="Access Control" icon="lock">
+    Fine-grained permissions and traceability
+  </Card>
+</CardGroup>
+
+## Data Model
+
+### Documento (Document)
+
+```python documentos/models.py
+class Documento(models.Model):
+    ESTADOS = [
+        ('BORRADOR', 'Draft'),
+        ('EN_REVISION', 'In Review'),
+        ('APROBADO', 'Approved'),
+        ('OBSOLETO', 'Obsolete'),
+    ]
+    
+    # Identification
+    codigo = models.CharField(max_length=100, unique=True)
+    titulo = models.CharField(max_length=500)
+    descripcion = models.TextField(blank=True)
+    
+    # Classification
+    tipo = models.ForeignKey('TipoDocumento', on_delete=models.PROTECT)
+    disciplina = models.ForeignKey('Disciplina', on_delete=models.SET_NULL)
+    
+    # Relationships
+    activo = models.ForeignKey('activos.Activo', on_delete=models.SET_NULL)
+    ubicacion = models.ForeignKey('activos.Ubicacion', on_delete=models.SET_NULL)
+    
+    # Status
+    estado = models.CharField(max_length=20, choices=ESTADOS)
+    
+    # Metadata
+    creado_por = models.ForeignKey(User, on_delete=models.SET_NULL)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+```
+
+### Revision (Document Revision)
+
+```python documentos/models.py
+class Revision(models.Model):
+    documento = models.ForeignKey('Documento', on_delete=models.CASCADE)
+    numero_revision = models.CharField(max_length=20)
+    
+    # File storage (MinIO/S3)
+    archivo = models.FileField(upload_to='documentos/')
+    nombre_archivo = models.CharField(max_length=255)
+    tamano = models.BigIntegerField()  # bytes
+    
+    # AI processing
+    texto_extraido = models.TextField(blank=True)
+    embedding = VectorField(dimensions=768, blank=True, null=True)
+    procesado = models.BooleanField(default=False)
+    
+    # Tracking
+    subido_por = models.ForeignKey(User, on_delete=models.SET_NULL)
+    fecha_subida = models.DateTimeField(auto_now_add=True)
+    
+    # Change description
+    comentarios = models.TextField(blank=True)
+```
+
+### MetadatoValor (Custom Metadata)
+
+```python documentos/models.py
+class MetadatoConfig(models.Model):
+    TIPOS = [
+        ('TEXT', 'Text'),
+        ('NUMBER', 'Number'),
+        ('DATE', 'Date'),
+        ('SELECT', 'Dropdown'),
+    ]
+    
+    nombre = models.CharField(max_length=100)
+    tipo = models.CharField(max_length=20, choices=TIPOS)
+    tipo_documento = models.ForeignKey('TipoDocumento', on_delete=models.CASCADE)
+    obligatorio = models.BooleanField(default=False)
+    opciones = models.JSONField(blank=True, null=True)  # For SELECT type
+
+class MetadatoValor(models.Model):
+    documento = models.ForeignKey('Documento', on_delete=models.CASCADE)
+    metadato = models.ForeignKey('MetadatoConfig', on_delete=models.CASCADE)
+    valor = models.TextField()
+```
+
+## Document Upload and Processing
+
+### Upload Workflow
+
+<Steps>
+  <Step title="Upload File">
+    User uploads document file to MinIO storage
+    
+    ```python documentos/views.py
+    def upload_documento(request):
+        archivo = request.FILES['archivo']
+        
+        # Create document and revision
+        documento = Documento.objects.create(
+            codigo=generate_codigo(),
+            titulo=request.POST.get('titulo'),
+            tipo_id=request.POST.get('tipo')
+        )
+        
+        revision = Revision.objects.create(
+            documento=documento,
+            numero_revision='0',
+            archivo=archivo,
+            subido_por=request.user
+        )
+    ```
+  </Step>
+  
+  <Step title="Trigger n8n Workflow">
+    Send webhook to n8n for processing
+    
+    ```python documentos/tasks.py
+    @shared_task
+    def procesar_documento(revision_id):
+        revision = Revision.objects.get(id=revision_id)
+        
+        # Trigger n8n workflow
+        response = requests.post(
+            settings.N8N_PROCESS_DOCUMENT_WEBHOOK_URL,
+            json={
+                'revision_id': revision.id,
+                'archivo_url': revision.archivo.url,
+                'callback_url': f'{settings.INTERNAL_SITE_URL}/documentos/callback/'
+            }
+        )
+    ```
+  </Step>
+  
+  <Step title="Extract Text (n8n)">
+    n8n extracts text from PDF using OCR/PDF libraries
+  </Step>
+  
+  <Step title="Generate Embeddings">
+    Create vector embeddings using Gemini API
+    
+    ```python documentos/tasks.py
+    @shared_task
+    def generar_embeddings(revision_id):
+        revision = Revision.objects.get(id=revision_id)
+        
+        # Generate embedding with Gemini
+        import google.generativeai as genai
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        
+        result = genai.embed_content(
+            model="models/embedding-001",
+            content=revision.texto_extraido
+        )
+        
+        # Store in pgvector
+        revision.embedding = result['embedding']
+        revision.procesado = True
+        revision.save()
+    ```
+  </Step>
+  
+  <Step title="Index for Search">
+    Document is now searchable via text and semantic search
+  </Step>
+</Steps>
+
+## AI-Powered Search
+
+### Semantic Search
+
+Find documents by meaning, not just keywords:
+
+```python documentos/views.py
+def buscar_semantico(request):
+    query = request.GET.get('q')
+    
+    # Generate query embedding
+    import google.generativeai as genai
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    
+    query_embedding = genai.embed_content(
+        model="models/embedding-001",
+        content=query
+    )['embedding']
+    
+    # Vector similarity search with pgvector
+    from django.db.models import F
+    from pgvector.django import CosineDistance
+    
+    resultados = Revision.objects.filter(
+        procesado=True
+    ).annotate(
+        distancia=CosineDistance('embedding', query_embedding)
+    ).filter(
+        distancia__lt=0.5  # Similarity threshold
+    ).order_by('distancia')[:20]
+    
+    return JsonResponse({
+        'resultados': [
+            {
+                'documento': r.documento.codigo,
+                'titulo': r.documento.titulo,
+                'similarity': 1 - r.distancia
+            }
+            for r in resultados
+        ]
+    })
+```
+
+### Hybrid Search
+
+Combine keyword and semantic search:
+
+```python documentos/views.py
+def buscar_hibrido(request):
+    query = request.GET.get('q')
+    
+    # Keyword search
+    keyword_results = Documento.objects.filter(
+        Q(titulo__icontains=query) |
+        Q(codigo__icontains=query) |
+        Q(revisiones__texto_extraido__icontains=query)
+    ).distinct()
+    
+    # Semantic search
+    semantic_results = buscar_semantico_interno(query)
+    
+    # Merge and rank results
+    combined = merge_results(keyword_results, semantic_results)
+    
+    return JsonResponse({'resultados': combined})
+```
+
+## PDF Annotations
+
+### ComentarioDocumento (PDF Comment)
+
+```python documentos/models.py
+class ComentarioDocumento(models.Model):
+    documento = models.ForeignKey('Documento', on_delete=models.CASCADE)
+    revision = models.ForeignKey('Revision', on_delete=models.CASCADE)
+    
+    # Position on PDF
+    pagina = models.IntegerField()
+    posicion_x = models.FloatField()  # Percentage 0-100
+    posicion_y = models.FloatField()  # Percentage 0-100
+    
+    # Content
+    texto = models.TextField()
+    autor = models.ForeignKey(User, on_delete=models.CASCADE)
+    fecha = models.DateTimeField(auto_now_add=True)
+    
+    # Thread
+    respuesta_a = models.ForeignKey('self', on_delete=models.CASCADE,
+                                   null=True, blank=True,
+                                   related_name='respuestas')
+```
+
+### Interactive PDF Viewer
+
+Display PDF with clickable comment pins:
+
+```javascript
+// Add comment pin to PDF
+function addComment(pageNum, x, y) {
+  const comentario = {
+    documento_id: documentoId,
+    pagina: pageNum,
+    posicion_x: (x / pageWidth) * 100,
+    posicion_y: (y / pageHeight) * 100,
+    texto: commentText
+  };
+  
+  fetch('/documentos/comentarios/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken
+    },
+    body: JSON.stringify(comentario)
+  });
+}
+```
+
+## AI Chat Assistant
+
+### N8nChatHistory (Chat History)
+
+```python documentos/models.py
+class N8nChatHistory(models.Model):
+    documento = models.ForeignKey('Documento', on_delete=models.CASCADE)
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE)
+    
+    pregunta = models.TextField()
+    respuesta = models.TextField()
+    
+    fecha = models.DateTimeField(auto_now_add=True)
+    session_id = models.CharField(max_length=100)
+```
+
+### Chat Interface
+
+Ask questions about document content:
+
+```python documentos/views.py
+def chat_documento(request, documento_id):
+    documento = Documento.objects.get(id=documento_id)
+    pregunta = request.POST.get('pregunta')
+    
+    # Send to n8n chat workflow
+    response = requests.post(
+        settings.N8N_CHAT_WEBHOOK_URL,
+        json={
+            'documento_id': documento.id,
+            'pregunta': pregunta,
+            'contexto': documento.ultima_revision.texto_extraido[:2000]
+        }
+    )
+    
+    respuesta = response.json()['respuesta']
+    
+    # Save to history
+    N8nChatHistory.objects.create(
+        documento=documento,
+        usuario=request.user,
+        pregunta=pregunta,
+        respuesta=respuesta
+    )
+    
+    return JsonResponse({'respuesta': respuesta})
+```
+
+## API Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Document Search" icon="magnifying-glass" href="/api/documents#search">
+    Search with filters and AI
+  </Card>
+  <Card title="Upload & Processing" icon="upload" href="/api/documents#upload">
+    Upload files and track processing
+  </Card>
+  <Card title="Annotations" icon="comment" href="/api/documents#comments">
+    Manage PDF comments and pins
+  </Card>
+  <Card title="AI Chat" icon="robot" href="/api/documents#ai-chat">
+    Chat with document content
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<Tip>
+**Naming Convention**: Use consistent document codes (e.g., DWG-ELEC-001 for electrical drawings)
+</Tip>
+
+<Warning>
+**Large Files**: Files over 50MB may timeout during processing - consider splitting
+</Warning>
+
+<Note>
+**Metadata Quality**: Rich metadata improves search accuracy significantly
+</Note>
+
+## Related Modules
+
+<CardGroup cols={3}>
+  <Card title="Assets" icon="building" href="/modules/assets">
+    Link documents to equipment
+  </Card>
+  <Card title="Projects" icon="diagram-project" href="/modules/projects">
+    Associate with projects
+  </Card>
+  <Card title="n8n Integration" icon="arrows-spin" href="/integration/n8n-automation">
+    Automation workflows
+  </Card>
+</CardGroup>

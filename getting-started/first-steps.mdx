@@ -1,0 +1,479 @@
+---
+title: First Steps
+description: Get started with Energy CMMS and learn the basics
+---
+
+## Accessing the System
+
+After installation and configuration, you can access Energy CMMS through two main interfaces:
+
+### Admin Interface
+
+The Django Admin interface provides full system administration:
+
+```
+http://your-domain.com/admin/
+```
+
+Login with the superuser credentials you created during installation.
+
+### Main Portal
+
+The main application portal for end users:
+
+```
+http://your-domain.com/portal/
+```
+
+<Note>
+All users must have valid Django user accounts to access the system. Create users through the Admin interface.
+</Note>
+
+## Initial Setup
+
+<Steps>
+
+<Step title="Create User Accounts">
+
+Navigate to **Admin** → **Authentication and Authorization** → **Users**
+
+1. Click **Add User**
+2. Enter username and password
+3. Click **Save and continue editing**
+4. Fill in additional details:
+   - First name and Last name
+   - Email address
+   - Staff status (for admin access)
+   - Active status
+5. Assign user to groups for permissions
+6. Click **Save**
+
+</Step>
+
+<Step title="Configure User Groups">
+
+Set up permission groups for role-based access:
+
+1. Go to **Admin** → **Authentication and Authorization** → **Groups**
+2. Create groups such as:
+   - **Maintenance Technicians**: View and create work orders
+   - **Warehouse Staff**: Manage inventory and materials
+   - **Budget Managers**: Handle requisitions and budget
+   - **Administrators**: Full system access
+3. Assign appropriate permissions to each group
+4. Add users to their respective groups
+
+</Step>
+
+<Step title="Set Up Basic Master Data">
+
+Configure the fundamental data your organization needs:
+
+#### Assets (Activos)
+- Navigate to **Activos** → **Activo**
+- Add your organization's assets (equipment, machinery, facilities)
+- Include: name, location, serial number, installation date
+
+#### Locations
+- Go to **Activos** → **Ubicación**
+- Create hierarchical location structure
+- Example: Site → Building → Floor → Room
+
+#### Categories
+- Navigate to **Mantenimiento** → **Categoría**
+- Define asset and maintenance categories
+- Example: HVAC, Electrical, Plumbing, Mechanical
+
+</Step>
+
+<Step title="Configure Maintenance Settings">
+
+Set up maintenance management foundations:
+
+#### Work Positions (Puestos de Trabajo)
+- Go to **Mantenimiento** → **Puesto Trabajo**
+- Create job roles: Electrician, Mechanic, HVAC Technician, etc.
+- Assign technicians to positions
+
+#### Maintenance Frequencies
+- Navigate to **Mantenimiento** → **Frecuencia**
+- Define maintenance intervals: Daily, Weekly, Monthly, Quarterly, Annually
+
+#### Failure Types
+- Go to **Mantenimiento** → **Falla**
+- Create common failure categories for reporting
+
+</Step>
+
+<Step title="Set Up Inventory">
+
+Configure warehouse and inventory management:
+
+#### Material Categories
+- Navigate to **Inventarios** → **Categoría Material**
+- Create categories: Spare Parts, Consumables, Tools, PPE, etc.
+
+#### Add Materials
+- Go to **Inventarios** → **Material**
+- Add materials with:
+  - Name and description
+  - Category
+  - Unit of measure
+  - Minimum stock level
+  - Storage location
+
+#### Create Initial Stock
+- Navigate to **Inventarios** → **Lote**
+- Add initial inventory batches with quantities
+
+</Step>
+
+</Steps>
+
+## Core Features Overview
+
+### Asset Management
+
+Manage your organization's physical assets:
+
+- **Asset Registry**: Complete inventory of equipment and facilities
+- **Hierarchical Structure**: Organize assets by location and parent-child relationships
+- **Asset Details**: Technical specifications, warranty info, documentation
+- **QR Code Generation**: Generate QR codes for easy asset identification
+- **Import/Export**: Bulk import assets from Excel/CSV files
+
+**Quick Access:**
+- View assets: **Admin** → **Activos** → **Activo**
+- Import dashboard: **Admin** → **Activos** → **Dashboard Importaciones**
+
+### Maintenance Management
+
+Comprehensive maintenance workflows:
+
+#### Work Orders (Órdenes de Trabajo)
+
+Create and track maintenance work:
+
+1. Navigate to **Mantenimiento** → **Orden Trabajo**
+2. Click **Add Orden Trabajo**
+3. Fill in details:
+   - Asset
+   - Work type (Corrective, Preventive, Predictive)
+   - Priority
+   - Assigned technician
+   - Description
+4. Save and track progress
+5. Close work order when complete
+
+#### Maintenance Notices (Avisos)
+
+Report issues and create work requests:
+
+1. Go to **Mantenimiento** → **Aviso**
+2. Create notice with:
+   - Asset affected
+   - Failure type
+   - Description and severity
+   - Photos (optional)
+3. System can auto-generate work orders from notices
+
+#### Preventive Maintenance
+
+Schedule recurring maintenance:
+
+1. **Create Procedures**:
+   - Navigate to **Mantenimiento** → **Procedimiento**
+   - Define step-by-step maintenance tasks
+   - Assign required skills/positions
+
+2. **Set Up Routines**:
+   - Go to **Mantenimiento** → **Rutina**
+   - Link procedure to asset
+   - Set frequency (e.g., every 3 months)
+
+3. **Configure Schedules**:
+   - Navigate to **Mantenimiento** → **Horario**
+   - Define when maintenance should occur
+   - Set days and time windows
+
+4. **Monthly Planning**:
+   - Access **Mantenimiento** → **Planificación Mensual**
+   - System auto-generates planned work orders
+
+<Note>
+The system automatically creates work orders based on maintenance schedules and calendar restrictions.
+</Note>
+
+### Inventory Management
+
+#### Request Materials
+
+1. Navigate to **Inventarios** → **Solicitud Material**
+2. Click **Add Solicitud Material**
+3. Select materials and quantities needed
+4. Submit for approval
+5. Warehouse staff processes request
+
+#### Track Stock Movements
+
+- View **Inventarios** → **Movimiento Inventario** for transaction history
+- Monitor stock levels in **Inventarios** → **Stock Record**
+- Set reorder points to trigger low stock alerts
+
+#### Material Compatibility
+
+Link materials to compatible assets:
+
+1. Go to **Inventarios** → **Compatibilidad Material**
+2. Associate materials with specific asset models
+3. Quick lookup when creating work orders
+
+### Budget & Requisitions
+
+#### Create Purchase Requisitions
+
+1. Navigate to **Presupuestos** → **Requisición**
+2. Click **Add Requisición**
+3. Fill in:
+   - Budget line item
+   - Description and justification
+   - Add articles/items with quantities and unit prices
+4. Attach supporting documents
+5. Submit for approval workflow
+
+#### Track Budget Execution
+
+- **Budget Items**: **Presupuestos** → **Partida Presupuestaria**
+- **Commitments**: **Presupuestos** → **Compromiso**
+- **Executed Expenses**: **Presupuestos** → **Gasto Ejecutado**
+- **Dashboard**: Access **Admin** → **Dashboard Requisiciones**
+
+### Document Management
+
+AI-powered document repository:
+
+#### Upload Documents
+
+1. Navigate to **Documentos** → **Documento**
+2. Click **Add Documento** or use **Carga Masiva** (bulk upload)
+3. Upload file (PDF, Word, Excel, images)
+4. Add metadata:
+   - Title and description
+   - Category and tags
+   - Related project/asset
+5. System automatically extracts text and generates embeddings
+
+#### Search Documents
+
+- **Traditional Search**: Use admin filters and search bar
+- **Semantic Search**: AI-powered search by meaning (requires Gemini API)
+- **Chat with Documents**: Ask questions about document content
+
+<Warning>
+Document AI features (semantic search, chat) require the `GEMINI_API_KEY` to be configured.
+</Warning>
+
+### Project Management
+
+Track projects and activities:
+
+1. Navigate to **Proyectos** → **Proyecto**
+2. Create project with scope, timeline, and budget
+3. Add activities and milestones
+4. Link related documents, assets, and work orders
+5. Monitor progress and deliverables
+
+### Safety Management
+
+Comprehensive safety program:
+
+#### Incident Reporting
+
+1. Go to **Seguridad** → **Incidente**
+2. Document incident details:
+   - Type and severity
+   - Date, time, and location
+   - People involved
+   - Description and root cause
+   - Corrective actions
+
+#### Safety Inspections
+
+1. Create inspection templates: **Seguridad** → **Tipo Inspección**
+2. Define checklist items: **Seguridad** → **Item Inspección**
+3. Conduct inspections: **Seguridad** → **Inspección**
+4. Record results and findings
+
+#### Work Permits
+
+1. Set up permit types: **Seguridad** → **Tipo Permiso**
+2. Define requirements: **Seguridad** → **Requisito Permiso**
+3. Issue permits: **Seguridad** → **Permiso Trabajo**
+4. Verify compliance before work begins
+
+## Using the Jazzmin Admin Interface
+
+### Navigation
+
+- **Sidebar**: Expandable/collapsible app navigation
+- **Top Menu**: Quick access to dashboards and common tasks
+- **Search**: Global search in the top right (keyboard shortcut: `/`)
+- **AI Assistant**: Accessible from "Asistente AI" in top menu
+
+### Quick Actions
+
+Top menu shortcuts:
+
+- **Menu Principal**: Main portal dashboard
+- **Dashboard Requisiciones**: Budget requisition overview
+- **Dashboard Importaciones**: Asset import status
+- **Sincronizar SIG**: Sync with external ticketing system
+- **Dashboard Mantenimiento**: Maintenance metrics and work orders
+- **Dashboard Inventarios**: Inventory levels and movements
+
+### Import/Export Data
+
+Many models support bulk operations:
+
+1. Navigate to the model list view (e.g., **Activos** → **Activo**)
+2. Use the **Import** button to upload Excel/CSV files
+3. Map columns to fields
+4. Preview and confirm import
+5. Use **Export** to download data in various formats
+
+<Note>
+Imports use UTF-8 encoding. Excel files with BOM are automatically detected and handled.
+</Note>
+
+## Background Tasks & Automation
+
+### Celery Worker Status
+
+Monitor background task processing:
+
+```bash
+# Check worker is running
+celery -A energia inspect ping
+
+# View active tasks
+celery -A energia inspect active
+
+# View scheduled tasks
+celery -A energia inspect scheduled
+```
+
+### Automated Tasks
+
+The system automatically:
+
+- **Document Processing**: Extracts text from PDFs and generates embeddings (every 60 seconds)
+- **n8n Webhooks**: Triggers external workflows for document processing
+- **Email Notifications**: Sends maintenance reminders and alerts
+- **Monthly Planning**: Generates preventive maintenance work orders
+
+### View Task Results
+
+Check background job status:
+
+1. Navigate to **Django Celery Results** → **Task Result**
+2. View task status: SUCCESS, PENDING, FAILURE
+3. Check task output or error messages
+4. Filter by date range or task name
+
+## Integration Features
+
+### QR Code Scanning
+
+Generate and scan QR codes for assets:
+
+1. Asset detail page shows QR code automatically
+2. Print QR code labels
+3. Scan with mobile device to quickly access asset info
+4. Link to asset maintenance history
+
+### Dynamics 365 Integration
+
+If configured with Microsoft Dynamics 365:
+
+- Sync customer data
+- Create service cases from tickets
+- Bidirectional data exchange
+
+### n8n Workflow Automation
+
+Automated document workflows:
+
+- **New Document Upload**: Triggers n8n workflow for processing
+- **PDF Text Extraction**: Automated OCR and text extraction
+- **Metadata Sync**: Updates document metadata from external sources
+- **Material Requests**: Automated approval notifications
+
+## Tips & Best Practices
+
+### Performance
+
+- Use filters and search to narrow results in large datasets
+- Import data in batches of 1,000 records or less
+- Archive old work orders and documents periodically
+
+### Data Quality
+
+- Use consistent naming conventions for assets and locations
+- Complete all required fields to enable proper reporting
+- Regular review and cleanup of duplicate entries
+- Add detailed descriptions to improve searchability
+
+### Maintenance Workflow
+
+- Create notices first, then convert to work orders
+- Always close work orders with completion notes
+- Attach photos to document conditions
+- Link materials used to work orders for cost tracking
+
+### Security
+
+- Use groups to manage permissions, not individual user permissions
+- Regularly review user access and deactivate unused accounts
+- Enable audit logging for sensitive operations
+- Backup database regularly
+
+## Getting Help
+
+### System Documentation
+
+- Inline help text in forms
+- Model documentation in admin interface
+- API documentation (if enabled)
+
+### Support Resources
+
+- Check application logs for errors
+- Review Celery task results for failed background jobs
+- Contact system administrator for access issues
+
+### Troubleshooting
+
+Common issues:
+
+- **Can't upload files**: Check `FILE_UPLOAD_MAX_MEMORY_SIZE` setting
+- **No search results**: Verify data exists and permissions are correct
+- **Slow performance**: Check database indexes and query optimization
+- **Email not sending**: Verify `EMAIL_BACKEND` configuration
+- **Background tasks stuck**: Restart Celery worker
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Asset Management" icon="building" href="/modules/assets">
+    Learn advanced asset management features
+  </Card>
+  <Card title="Maintenance" icon="wrench" href="/modules/maintenance">
+    Master the maintenance module
+  </Card>
+  <Card title="API Integration" icon="code" href="/api/overview">
+    Integrate with external systems
+  </Card>
+  <Card title="Reporting" icon="chart-line" href="/reporting/overview">
+    Generate reports and analytics
+  </Card>
+</CardGroup>

@@ -1,0 +1,447 @@
+---
+title: Configuration
+description: Configure Energy CMMS environment variables and settings
+---
+
+## Environment Variables
+
+Energy CMMS uses environment variables for configuration. Copy `.env.example` to `.env` and adjust the values:
+
+```bash
+cp .env.example .env
+```
+
+### Core Django Settings
+
+#### DEBUG Mode
+
+```bash
+DJANGO_DEBUG=False
+```
+
+<Warning>
+**Never enable DEBUG in production!** Set `DJANGO_DEBUG=False` for production environments. Debug mode exposes sensitive information and impacts performance.
+</Warning>
+
+#### Secret Key
+
+```bash
+SECRET_KEY=your-secret-key-here-change-in-production
+```
+
+Generate a secure secret key:
+
+```python
+python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+#### Allowed Hosts
+
+```bash
+ALLOWED_HOSTS=your-domain.com,subdomain.example.com,*.coolify.io
+```
+
+Comma-separated list of domains allowed to access your application. Use `*` for local development only.
+
+#### CSRF Trusted Origins
+
+```bash
+CSRF_TRUSTED_ORIGINS=https://your-domain.com,https://subdomain.example.com
+```
+
+Required for form submissions from specific domains. Must include the protocol (`https://` or `http://`).
+
+### Database Configuration
+
+#### PostgreSQL Connection
+
+```bash
+DATABASE_URL=postgresql://username:password@host:5432/database_name
+```
+
+Format: `postgresql://[user]:[password]@[host]:[port]/[database]`
+
+**Configuration Details:**
+- **Connection pooling**: Max age 600 seconds (10 minutes)
+- **Health checks**: Enabled
+- **SSL mode**: Disabled by default (use `?sslmode=require` for SSL)
+- **Connection timeout**: 20 seconds (production), 10 seconds (development)
+- **Keepalive settings**: Enabled with 30s idle, 10s interval, 5 retries
+
+<Note>
+For Coolify deployments, the `DATABASE_URL` is automatically provided by the platform. Use the service name (e.g., `postgres-service`) as the host for internal communication.
+</Note>
+
+#### Local Development Database
+
+For local development, you can use port tunneling:
+
+```bash
+DATABASE_URL=postgresql://postgres:admin123@127.0.0.1:5434/postgres
+```
+
+### Celery Configuration
+
+#### Redis Broker
+
+```bash
+CELERY_BROKER_URL=redis://redis:6379/0
+```
+
+For Docker Compose, use `redis://redis:6379/0`. For local development with external Redis:
+
+```bash
+CELERY_BROKER_URL=redis://localhost:6379/0
+```
+
+Or with authentication:
+
+```bash
+CELERY_BROKER_URL=redis://default:password@host:6379/0
+```
+
+#### Result Backend
+
+```bash
+CELERY_RESULT_BACKEND=django-db
+```
+
+Task results are stored in Django's database using `django-celery-results`.
+
+**Celery Settings:**
+- **Task time limit**: 30 minutes
+- **Broker connection timeout**: 3 seconds
+- **Socket timeout**: 3 seconds
+- **Connection retry**: Enabled on startup
+
+### Storage Configuration (MinIO/S3)
+
+#### AWS/MinIO Credentials
+
+```bash
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
+AWS_STORAGE_BUCKET_NAME=energia-media
+AWS_S3_ENDPOINT_URL=http://minio:9000
+```
+
+#### Development vs Production
+
+**Local Development:**
+```bash
+AWS_S3_ENDPOINT_URL=http://181.115.47.107:9000
+# Direct IP access without custom domain
+```
+
+**Production (Coolify):**
+```bash
+AWS_S3_ENDPOINT_URL=http://minio-service:9000
+# Internal service name for container communication
+```
+
+<Note>
+Energy CMMS uses MinIO (S3-compatible) for media storage with proxy support to avoid SSL/CORS issues. In production, media files are served through `/media-proxy/`.
+</Note>
+
+**Storage Configuration:**
+- **Region**: `us-east-1` (default)
+- **Signature version**: `s3v4`
+- **File overwrite**: Disabled (preserves original files)
+- **Addressing style**: `path` (critical for MinIO compatibility)
+- **SSL verification**: Disabled for internal MinIO
+
+### Site URLs
+
+#### Public Site URL
+
+```bash
+SITE_URL=https://your-domain.com
+```
+
+Public URL for accessing the application.
+
+#### Internal Site URL
+
+```bash
+INTERNAL_SITE_URL=http://django-service:8000
+```
+
+Internal URL for container-to-container communication (e.g., n8n calling Django webhooks).
+
+<Warning>
+For Coolify deployments, use the internal service name provided by Coolify (format: `http://[uuid]:8000`) for `INTERNAL_SITE_URL` to ensure proper inter-container communication.
+</Warning>
+
+### n8n Integration (Optional)
+
+#### Webhook URLs
+
+```bash
+# n8n base URL
+N8N_BASE_URL=http://n8n:5678
+
+# Document processing webhooks
+N8N_WEBHOOK_URL=http://n8n:5678/webhook/nuevo-documento
+N8N_CHAT_WEBHOOK_URL=http://n8n:5678/webhook/chat-documento
+N8N_EXTRACT_TEXTO_WEBHOOK_URL=http://n8n:5678/webhook/extract-text
+N8N_PROCESS_DOCUMENT_WEBHOOK_URL=http://n8n:5678/webhook/process-document
+N8N_SOLICITUD_WEBHOOK_URL=http://n8n:5678/webhook/solicitud-material
+```
+
+**Local Development:**
+```bash
+N8N_BASE_URL=http://181.115.47.107:5678
+N8N_WEBHOOK_URL=http://181.115.47.107:5678/webhook-test/nuevo-documento
+```
+
+### AI Configuration (Optional)
+
+#### Google Gemini API
+
+```bash
+GEMINI_API_KEY=your-gemini-api-key-here
+```
+
+Required for:
+- Semantic document search using embeddings
+- AI-powered chat functionality
+- Automated document analysis
+
+Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey).
+
+<Warning>
+Without a `GEMINI_API_KEY`, the system will start but AI features (semantic search, document chat) will not be available.
+</Warning>
+
+### Microsoft Dynamics 365 Integration (Optional)
+
+```bash
+DYNAMICS_TENANT_ID=your-tenant-id
+DYNAMICS_CLIENT_ID=your-client-id
+DYNAMICS_CLIENT_SECRET=your-client-secret
+DYNAMICS_RESOURCE_URL=https://your-org.crm.dynamics.com
+```
+
+Required for integrating with Microsoft Dynamics 365 CRM.
+
+## Application Settings (settings.py)
+
+### Localization
+
+Energy CMMS is configured for Honduras:
+
+```python
+LANGUAGE_CODE = 'es-hn'  # Spanish (Honduras)
+TIME_ZONE = 'America/Tegucigalpa'
+USE_I18N = True
+USE_TZ = True
+```
+
+**Number Formatting:**
+- Decimal separator: `.` (point)
+- Thousand separator: `,` (comma)
+- Currency: Lempiras (HNL)
+
+### File Upload Limits
+
+```python
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024   # 50 MB
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 100000
+```
+
+<Note>
+These limits prevent memory exhaustion from large file uploads and support bulk import operations.
+</Note>
+
+### Installed Applications
+
+Core modules included:
+
+- **core**: Base functionality and UI overrides
+- **activos**: Asset management
+- **mantenimiento**: Maintenance management (work orders, procedures, schedules)
+- **inventarios**: Inventory and material management
+- **presupuestos**: Budget and requisition management
+- **documentos**: Document management with AI-powered search
+- **proyectos**: Project and activity management
+- **callcenter**: Ticket and service request management
+- **comunicaciones**: Mail and transmittal system
+- **plantillas**: Word template system
+- **seguridad**: Safety management (incidents, inspections, permits)
+- **almacen**: Warehouse management
+- **auditorias**: Audit trails
+- **servicios**: Service management
+
+### Security Settings
+
+#### Proxy Configuration
+
+```python
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
+```
+
+Configured for reverse proxies (Nginx, Traefik, Coolify).
+
+#### CORS
+
+```python
+CORS_ALLOW_ALL_ORIGINS = True  # Development only
+```
+
+<Warning>
+For production, restrict CORS to specific origins by setting `CORS_ALLOWED_ORIGINS` instead of `CORS_ALLOW_ALL_ORIGINS`.
+</Warning>
+
+#### X-Frame Options
+
+```python
+X_FRAME_OPTIONS = 'SAMEORIGIN'
+```
+
+Allows embedding admin interface in iframes from the same origin (for modals and popups).
+
+### Logging Configuration
+
+Default logging setup:
+
+```python
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}
+```
+
+Logs are written to stdout/stderr and captured by Docker/Coolify.
+
+### Periodic Tasks (Celery Beat)
+
+Automated scheduled tasks:
+
+```python
+CELERY_BEAT_SCHEDULE = {
+    'sync-document-embeddings-every-minute': {
+        'task': 'documentos.tasks.sync_document_embeddings',
+        'schedule': 60.0,  # Every 60 seconds
+    },
+}
+```
+
+Processes new documents and generates AI embeddings for semantic search.
+
+## Environment Detection
+
+The application automatically detects the environment:
+
+```python
+IS_LOCAL = DEBUG and not os.environ.get('COOLIFY_FQDN')
+```
+
+- **Local**: `DJANGO_DEBUG=True` and no `COOLIFY_FQDN`
+- **Production**: `COOLIFY_FQDN` is present or `DEBUG=False`
+
+This affects:
+- Database connection settings
+- MinIO/S3 endpoints
+- n8n webhook URLs
+- Cache backend selection
+
+## Configuration Examples
+
+<CodeGroup>
+
+```bash Local Development
+DJANGO_DEBUG=True
+SECRET_KEY=dev-secret-key-not-for-production
+ALLOWED_HOSTS=*
+DATABASE_URL=postgresql://postgres:admin123@localhost:5432/energia_db
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=django-db
+AWS_S3_ENDPOINT_URL=http://localhost:9000
+GEMINI_API_KEY=your-api-key
+```
+
+```bash Docker Compose
+DJANGO_DEBUG=False
+SECRET_KEY=your-generated-secret-key
+ALLOWED_HOSTS=localhost,127.0.0.1
+DATABASE_URL=postgresql://postgres:password@postgres:5432/energia_db
+CELERY_BROKER_URL=redis://redis:6379/0
+CELERY_RESULT_BACKEND=django-db
+AWS_ACCESS_KEY_ID=minioadmin
+AWS_SECRET_ACCESS_KEY=minioadmin
+AWS_STORAGE_BUCKET_NAME=energia-media
+AWS_S3_ENDPOINT_URL=http://minio:9000
+```
+
+```bash Coolify Production
+DJANGO_DEBUG=False
+SECRET_KEY=production-secret-key-very-long-and-random
+ALLOWED_HOSTS=energia.yourdomain.com
+CSRF_TRUSTED_ORIGINS=https://energia.yourdomain.com
+DATABASE_URL=postgresql://user:pass@postgres-uuid:5432/energia
+CELERY_BROKER_URL=redis://default:password@redis-uuid:6379/0
+CELERY_RESULT_BACKEND=django-db
+SITE_URL=https://energia.yourdomain.com
+INTERNAL_SITE_URL=http://django-uuid:8000
+AWS_S3_ENDPOINT_URL=http://minio-uuid:9000
+N8N_WEBHOOK_URL=http://n8n-uuid:5678/webhook/nuevo-documento
+GEMINI_API_KEY=your-production-api-key
+```
+
+</CodeGroup>
+
+## Verification
+
+After configuration, verify settings:
+
+```bash
+# Check configuration is loaded
+python manage.py check
+
+# Test database connection
+python manage.py migrate --check
+
+# Verify static files configuration
+python manage.py collectstatic --dry-run
+
+# Test Celery connection
+celery -A energia inspect ping
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="First Steps" icon="rocket" href="/getting-started/first-steps">
+    Start using Energy CMMS
+  </Card>
+  <Card title="Deployment" icon="cloud" href="/deployment/overview">
+    Deploy to production
+  </Card>
+</CardGroup>

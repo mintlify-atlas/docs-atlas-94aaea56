@@ -1,0 +1,706 @@
+---
+title: Documents API
+description: Manage documents with AI-powered processing, search, and metadata extraction
+icon: 'file-alt'
+---
+
+## Overview
+
+The Documents API provides comprehensive document management with AI-powered features including semantic search, automatic metadata extraction, OCR processing, and document relationships.
+
+**Base Path:** `/documentos/`
+
+## Document Search
+
+### Standard Search
+
+Search documents by metadata and content.
+
+```http
+GET /documentos/api/buscar/
+```
+
+<ParamField query="q" type="string">
+  Search query for document title, code, or content
+</ParamField>
+
+<ParamField query="tipo_id" type="integer">
+  Filter by document type ID
+</ParamField>
+
+<ParamField query="disciplina_id" type="integer">
+  Filter by discipline ID
+</ParamField>
+
+<ParamField query="estado" type="string">
+  Filter by status: BORRADOR, REVISION, APROBADO, ARCHIVADO
+</ParamField>
+
+<ParamField query="fecha_desde" type="string">
+  Filter by date from (YYYY-MM-DD)
+</ParamField>
+
+<ParamField query="fecha_hasta" type="string">
+  Filter by date to (YYYY-MM-DD)
+</ParamField>
+
+#### Response
+
+<ResponseField name="results" type="array">
+  Array of document objects
+  <Expandable title="Document Object">
+    <ResponseField name="id" type="integer">
+      Document ID
+    </ResponseField>
+    <ResponseField name="codigo" type="string">
+      Document code
+    </ResponseField>
+    <ResponseField name="titulo" type="string">
+      Document title
+    </ResponseField>
+    <ResponseField name="tipo" type="string">
+      Document type name
+    </ResponseField>
+    <ResponseField name="disciplina" type="string">
+      Discipline name
+    </ResponseField>
+    <ResponseField name="estado" type="string">
+      Current status
+    </ResponseField>
+    <ResponseField name="revision" type="string">
+      Current revision number
+    </ResponseField>
+    <ResponseField name="fecha_emision" type="string">
+      Issue date
+    </ResponseField>
+    <ResponseField name="responsable" type="string">
+      Responsible person
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Vector Search (Semantic Search)
+
+Perform AI-powered semantic search using embeddings.
+
+```http
+POST /documentos/api/busqueda-vectorial/
+```
+
+<ParamField body="query" type="string" required>
+  Natural language search query
+</ParamField>
+
+<ParamField body="limit" type="integer" default="10">
+  Number of results to return
+</ParamField>
+
+<ParamField body="similarity_threshold" type="float" default="0.7">
+  Minimum similarity score (0-1)
+</ParamField>
+
+<ParamField body="biblioteca_id" type="integer">
+  Filter by library/collection ID
+</ParamField>
+
+#### Response
+
+<ResponseField name="results" type="array">
+  Array of search results with similarity scores
+  <Expandable title="Result Object">
+    <ResponseField name="documento_id" type="integer">
+      Document ID
+    </ResponseField>
+    <ResponseField name="codigo" type="string">
+      Document code
+    </ResponseField>
+    <ResponseField name="titulo" type="string">
+      Document title
+    </ResponseField>
+    <ResponseField name="similarity" type="float">
+      Similarity score (0-1)
+    </ResponseField>
+    <ResponseField name="snippet" type="string">
+      Relevant text excerpt
+    </ResponseField>
+    <ResponseField name="pdf_url" type="string">
+      PDF URL
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/documentos/api/busqueda-vectorial/', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-CSRFToken': csrfToken
+  },
+  credentials: 'same-origin',
+  body: JSON.stringify({
+    query: 'pump maintenance procedures',
+    limit: 5,
+    similarity_threshold: 0.75
+  })
+})
+.then(res => res.json())
+.then(data => console.log(data.results));
+```
+
+```json Response
+{
+  "results": [
+    {
+      "documento_id": 456,
+      "codigo": "MNT-PRO-001",
+      "titulo": "Centrifugal Pump Maintenance Manual",
+      "similarity": 0.89,
+      "snippet": "...routine maintenance procedures for centrifugal pumps including inspection, lubrication, and seal replacement...",
+      "pdf_url": "/documentos/proxy/pdf/456/"
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+## Document Details
+
+### Get Document Details
+
+Retrieve comprehensive information about a document.
+
+```http
+GET /documentos/api/detalle/{doc_id}/
+```
+
+<ParamField path="doc_id" type="integer" required>
+  Document ID
+</ParamField>
+
+#### Response
+
+<ResponseField name="id" type="integer">
+  Document ID
+</ResponseField>
+
+<ResponseField name="codigo" type="string">
+  Document code
+</ResponseField>
+
+<ResponseField name="titulo" type="string">
+  Document title
+</ResponseField>
+
+<ResponseField name="tipo" type="object">
+  Document type information
+</ResponseField>
+
+<ResponseField name="disciplina" type="object">
+  Discipline information
+</ResponseField>
+
+<ResponseField name="estado" type="string">
+  Current status
+</ResponseField>
+
+<ResponseField name="revision_actual" type="object">
+  Current revision details
+  <Expandable title="Revision Object">
+    <ResponseField name="numero" type="string">
+      Revision number
+    </ResponseField>
+    <ResponseField name="fecha" type="string">
+      Revision date
+    </ResponseField>
+    <ResponseField name="descripcion_cambios" type="string">
+      Change description
+    </ResponseField>
+    <ResponseField name="archivo_url" type="string">
+      File URL
+    </ResponseField>
+    <ResponseField name="texto_extraido" type="string">
+      Extracted text content
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="metadatos" type="object">
+  Custom metadata fields
+</ResponseField>
+
+<ResponseField name="comentarios" type="array">
+  Array of comments
+</ResponseField>
+
+<ResponseField name="respuestas" type="array">
+  Related response documents
+</ResponseField>
+
+<ResponseField name="responsable" type="object">
+  Responsible user information
+</ResponseField>
+
+## Document Operations
+
+### Update Document Status
+
+Change the status of a document.
+
+```http
+POST /documentos/api/actualizar-estado/{doc_id}/
+```
+
+<ParamField path="doc_id" type="integer" required>
+  Document ID
+</ParamField>
+
+<ParamField body="estado" type="string" required>
+  New status: BORRADOR, REVISION, APROBADO, ARCHIVADO
+</ParamField>
+
+<ParamField body="comentario" type="string">
+  Optional comment explaining the status change
+</ParamField>
+
+### Update Document Responsible
+
+Assign a new responsible person.
+
+```http
+POST /documentos/api/actualizar-responsable/{doc_id}/
+```
+
+<ParamField path="doc_id" type="integer" required>
+  Document ID
+</ParamField>
+
+<ParamField body="responsable_id" type="integer" required>
+  User ID of new responsible person
+</ParamField>
+
+### Update Document Date
+
+Update the document date.
+
+```http
+POST /documentos/api/actualizar-fecha/{doc_id}/
+```
+
+<ParamField path="doc_id" type="integer" required>
+  Document ID
+</ParamField>
+
+<ParamField body="fecha" type="string" required>
+  New date (YYYY-MM-DD format)
+</ParamField>
+
+<ParamField body="tipo" type="string" required>
+  Date type: emision, vencimiento, recepcion
+</ParamField>
+
+## Comments and Annotations
+
+### Add Comment
+
+Add a comment to a document.
+
+```http
+POST /documentos/api/comentar/{doc_id}/
+```
+
+<ParamField path="doc_id" type="integer" required>
+  Document ID
+</ParamField>
+
+<ParamField body="texto" type="string" required>
+  Comment text
+</ParamField>
+
+<ParamField body="x" type="float">
+  X coordinate for pin comment on PDF
+</ParamField>
+
+<ParamField body="y" type="float">
+  Y coordinate for pin comment on PDF
+</ParamField>
+
+<ParamField body="pagina" type="integer">
+  PDF page number for pin
+</ParamField>
+
+<ParamField body="vinculos" type="array">
+  Array of document IDs to link
+</ParamField>
+
+#### Response
+
+<ResponseField name="status" type="string">
+  "success" or "error"
+</ResponseField>
+
+<ResponseField name="comentario_id" type="integer">
+  Created comment ID
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/documentos/api/comentar/456/', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-CSRFToken': csrfToken
+  },
+  credentials: 'same-origin',
+  body: JSON.stringify({
+    texto: 'This section needs revision',
+    x: 150.5,
+    y: 300.2,
+    pagina: 3
+  })
+});
+```
+
+```json Response
+{
+  "status": "success",
+  "comentario_id": 789
+}
+```
+
+</CodeGroup>
+
+### Edit Comment
+
+Update an existing comment.
+
+```http
+POST /documentos/api/comentar/u/{comentario_id}/
+```
+
+<ParamField path="comentario_id" type="integer" required>
+  Comment ID
+</ParamField>
+
+<ParamField body="texto" type="string" required>
+  Updated comment text
+</ParamField>
+
+### Delete Comment
+
+Remove a comment.
+
+```http
+POST /documentos/api/comentar/d/{comentario_id}/
+```
+
+<ParamField path="comentario_id" type="integer" required>
+  Comment ID to delete
+</ParamField>
+
+## AI Processing
+
+### Trigger Text Extraction
+
+Trigger n8n workflow to extract text from PDF.
+
+```http
+POST /documentos/api/trigger-extraction/{doc_id}/
+```
+
+<ParamField path="doc_id" type="integer" required>
+  Document ID
+</ParamField>
+
+<Note>
+This endpoint triggers an external n8n workflow for PDF text extraction using OCR.
+</Note>
+
+### Update Extracted Text
+
+Callback endpoint to receive extracted text from n8n.
+
+```http
+POST /documentos/api/update-texto/{doc_id}/
+```
+
+<ParamField path="doc_id" type="integer" required>
+  Document ID
+</ParamField>
+
+<ParamField body="texto" type="string" required>
+  Extracted text content
+</ParamField>
+
+### Vectorize Document
+
+Generate embeddings for semantic search.
+
+```http
+POST /documentos/api/vectorize/{doc_id}/
+```
+
+<ParamField path="doc_id" type="integer" required>
+  Document ID
+</ParamField>
+
+<Note>
+Uses Google Gemini API to generate embeddings from extracted text. Configured via `GEMINI_API_KEY` setting.
+</Note>
+
+### Chat with AI
+
+Ask questions about documents using AI.
+
+```http
+POST /documentos/api/chat-ia/
+```
+
+<ParamField body="query" type="string" required>
+  Natural language question
+</ParamField>
+
+<ParamField body="documento_id" type="integer">
+  Specific document ID to query
+</ParamField>
+
+<ParamField body="biblioteca_id" type="integer">
+  Library/collection ID to search within
+</ParamField>
+
+#### Response
+
+<ResponseField name="respuesta" type="string">
+  AI-generated answer
+</ResponseField>
+
+<ResponseField name="documentos_relevantes" type="array">
+  Array of relevant document IDs
+</ResponseField>
+
+<ResponseField name="confianza" type="float">
+  Confidence score (0-1)
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/documentos/api/chat-ia/', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-CSRFToken': csrfToken
+  },
+  credentials: 'same-origin',
+  body: JSON.stringify({
+    query: 'What is the recommended maintenance interval for centrifugal pumps?',
+    biblioteca_id: 5
+  })
+});
+```
+
+```json Response
+{
+  "respuesta": "According to the maintenance manual MNT-PRO-001, centrifugal pumps should undergo routine inspection every 30 days, with comprehensive maintenance every 6 months.",
+  "documentos_relevantes": [456, 457],
+  "confianza": 0.92
+}
+```
+
+</CodeGroup>
+
+## Library Management
+
+### Get Document Libraries
+
+Retrieve libraries/collections for a document.
+
+```http
+GET /documentos/api/bibliotecas/{doc_id}/
+```
+
+<ParamField path="doc_id" type="integer" required>
+  Document ID
+</ParamField>
+
+#### Response
+
+<ResponseField name="bibliotecas" type="array">
+  Array of library objects
+  <Expandable title="Library Object">
+    <ResponseField name="id" type="integer">
+      Library ID
+    </ResponseField>
+    <ResponseField name="nombre" type="string">
+      Library name
+    </ResponseField>
+    <ResponseField name="descripcion" type="string">
+      Library description
+    </ResponseField>
+    <ResponseField name="is_member" type="boolean">
+      Whether document is in this library
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Toggle Library Membership
+
+Add or remove document from a library.
+
+```http
+POST /documentos/api/bibliotecas/toggle/{doc_id}/{bib_id}/
+```
+
+<ParamField path="doc_id" type="integer" required>
+  Document ID
+</ParamField>
+
+<ParamField path="bib_id" type="integer" required>
+  Library ID
+</ParamField>
+
+### Get Library Documents
+
+Retrieve all documents in a library.
+
+```http
+GET /documentos/api/bibliotecas/documentos/{bib_id}/
+```
+
+<ParamField path="bib_id" type="integer" required>
+  Library ID
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Page number for pagination
+</ParamField>
+
+## Metadata Management
+
+### Get Model Fields
+
+Retrieve available fields for a content type (for metadata configuration).
+
+```http
+GET /documentos/api/model-fields/
+```
+
+<ParamField query="ct_id" type="integer" required>
+  ContentType ID
+</ParamField>
+
+#### Response
+
+<ResponseField name="fields" type="array">
+  Array of field names available for the model
+</ResponseField>
+
+### Update Metadata Value
+
+Update a custom metadata field value.
+
+```http
+POST /documentos/api/metadato/u/{mv_id}/
+```
+
+<ParamField path="mv_id" type="integer" required>
+  MetadataValue ID
+</ParamField>
+
+<ParamField body="valor" type="string" required>
+  New metadata value
+</ParamField>
+
+## Document Creation
+
+### Bulk Upload
+
+Upload multiple documents at once.
+
+```http
+POST /documentos/carga-masiva/submit/
+```
+
+<ParamField body="archivos" type="array" required>
+  Array of file uploads (multipart/form-data)
+</ParamField>
+
+<ParamField body="tipo_id" type="integer" required>
+  Default document type ID
+</ParamField>
+
+<ParamField body="disciplina_id" type="integer">
+  Default discipline ID
+</ParamField>
+
+<ParamField body="auto_process" type="boolean" default="true">
+  Automatically trigger AI processing
+</ParamField>
+
+## n8n Integration
+
+### Processing Callback
+
+Webhook endpoint for n8n to return processing results.
+
+```http
+POST /documentos/api/callback-procesamiento/{revision_id}/
+```
+
+<ParamField path="revision_id" type="integer" required>
+  Revision ID
+</ParamField>
+
+<ParamField body="texto_extraido" type="string">
+  Extracted text from PDF
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Extracted metadata (title, author, date, etc.)
+</ParamField>
+
+<ParamField body="procesado_exitoso" type="boolean" required>
+  Whether processing was successful
+</ParamField>
+
+<Note>
+This endpoint is called by the n8n workflow after PDF processing completes.
+
+Configuration:
+- `N8N_PROCESS_DOCUMENT_WEBHOOK_URL` - Webhook URL to trigger processing
+- `INTERNAL_SITE_URL` - URL for n8n to callback to Django
+</Note>
+
+## Configuration
+
+### Key Settings
+
+```python
+# energia/settings.py
+
+# n8n Integration
+N8N_BASE_URL = os.environ.get('N8N_INTERNAL_URL', 'http://n8n:5678')
+N8N_EXTRACT_TEXTO_WEBHOOK_URL = f'{N8N_BASE_URL}/webhook/extract-text'
+N8N_PROCESS_DOCUMENT_WEBHOOK_URL = f'{N8N_BASE_URL}/webhook/process-document'
+N8N_CHAT_WEBHOOK_URL = f'{N8N_BASE_URL}/webhook/chat-documento'
+
+# AI Configuration
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+
+# Callback URL
+INTERNAL_SITE_URL = os.environ.get('INTERNAL_SITE_URL', 'http://app:8000')
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Assets API" icon="building" href="/api/assets">
+    Asset management endpoints
+  </Card>
+  <Card title="Maintenance API" icon="tools" href="/api/maintenance">
+    Work orders and maintenance
+  </Card>
+</CardGroup>

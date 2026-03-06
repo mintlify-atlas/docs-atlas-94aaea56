@@ -1,0 +1,155 @@
+---
+title: "Inventory Management"
+description: "Multi-warehouse inventory control with stock tracking and material movements"
+icon: "boxes"
+---
+
+## Overview
+
+The Inventory module manages materials, spare parts, and consumables across multiple warehouse locations with complete traceability of stock movements.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Multi-Warehouse" icon="warehouse">
+    Manage stock across multiple physical locations
+  </Card>
+  <Card title="Material Catalog" icon="book">
+    Comprehensive material master data
+  </Card>
+  <Card title="Stock Tracking" icon="chart-line">
+    Real-time stock levels and movements
+  </Card>
+  <Card title="Shopping Cart" icon="cart-shopping">
+    Material request workflow for technicians
+  </Card>
+</CardGroup>
+
+## Data Model
+
+### Material
+
+```python inventarios/models.py
+class Material(models.Model):
+    codigo = models.CharField(max_length=50, unique=True)
+    nombre = models.CharField(max_length=255)
+    descripcion = models.TextField()
+    
+    categoria = models.ForeignKey('CategoriaMaterial', on_delete=models.SET_NULL)
+    unidad_medida = models.CharField(max_length=20)
+    
+    precio_estimado = models.DecimalField(max_digits=10, decimal_places=2)
+    foto = models.ImageField(upload_to='materiales/', blank=True)
+```
+
+### StockRecord
+
+```python inventarios/models.py
+class StockRecord(models.Model):
+    material = models.ForeignKey('Material', on_delete=models.CASCADE)
+    ubicacion = models.ForeignKey('activos.Ubicacion', on_delete=models.CASCADE)
+    
+    cantidad = models.DecimalField(max_digits=10, decimal_places=2)
+    cantidad_reservada = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    @property
+    def cantidad_disponible(self):
+        return self.cantidad - self.cantidad_reservada
+```
+
+### MovimientoInventario
+
+```python inventarios/models.py
+class MovimientoInventario(models.Model):
+    TIPOS = [
+        ('ENTRADA', 'Entrada'),
+        ('SALIDA', 'Salida'),
+        ('TRANSFERENCIA', 'Transferencia'),
+        ('AJUSTE', 'Ajuste'),
+    ]
+    
+    tipo = models.CharField(max_length=20, choices=TIPOS)
+    material = models.ForeignKey('Material', on_delete=models.PROTECT)
+    cantidad = models.DecimalField(max_digits=10, decimal_places=2)
+    
+    ubicacion_origen = models.ForeignKey('activos.Ubicacion', 
+                                        on_delete=models.PROTECT,
+                                        related_name='movimientos_salida')
+    ubicacion_destino = models.ForeignKey('activos.Ubicacion',
+                                         on_delete=models.PROTECT,
+                                         related_name='movimientos_entrada')
+    
+    fecha = models.DateTimeField(auto_now_add=True)
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL)
+    referencia = models.CharField(max_length=100)  # Work order, etc.
+```
+
+## Stock Operations
+
+### Material Request
+
+Technicians request materials via shopping cart:
+
+```python inventarios/views.py
+def agregar_carrito(request):
+    material_id = request.POST.get('material_id')
+    cantidad = Decimal(request.POST.get('cantidad'))
+    
+    # Get or create cart
+    cart_key = f'cart_{request.user.id}'
+    cart = cache.get(cart_key, [])
+    
+    # Add item
+    cart.append({
+        'material_id': material_id,
+        'cantidad': cantidad
+    })
+    
+    cache.set(cart_key, cart, timeout=3600)
+    
+    return JsonResponse({'status': 'ok'})
+```
+
+### Checkout Process
+
+<Steps>
+  <Step title="Select Materials">
+    Add materials to shopping cart
+  </Step>
+  <Step title="Validate Stock">
+    System checks availability
+  </Step>
+  <Step title="Create Request">
+    SolicitudMaterial record created
+  </Step>
+  <Step title="Approval">
+    Warehouse manager approves
+  </Step>
+  <Step title="Dispatch">
+    Stock movement recorded
+  </Step>
+</Steps>
+
+## API Endpoints
+
+<Card title="Material Search" icon="magnifying-glass" href="/api/inventory#material-search">
+Search materials with pagination and filtering
+</Card>
+
+<Card title="Stock Management" icon="warehouse" href="/api/inventory#stock-operations">
+Query and update stock levels
+</Card>
+
+## Related Modules
+
+<CardGroup cols={3}>
+  <Card title="Maintenance" icon="wrench" href="/modules/maintenance">
+    Consume materials on work orders
+  </Card>
+  <Card title="Assets" icon="building" href="/modules/assets">
+    Link materials to equipment
+  </Card>
+  <Card title="Budgets" icon="dollar-sign" href="/modules/budgets">
+    Track material costs
+  </Card>
+</CardGroup>

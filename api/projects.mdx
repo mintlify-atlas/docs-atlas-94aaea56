@@ -1,0 +1,186 @@
+---
+title: "Projects API"
+description: "Project and activity management endpoints"
+icon: "diagram-project"
+---
+
+## Overview
+
+The Projects API allows you to manage projects, activities, dependencies, and track progress programmatically.
+
+## Authentication
+
+All API requests require Django session authentication. See [Authentication](/api/authentication) for details.
+
+## Endpoints
+
+### Create Activity
+
+Create a new activity within a project.
+
+**Endpoint:** `POST /proyectos/actividades/crear/`
+
+<ParamField path="proyecto_id" type="integer" required>
+  ID of the parent project
+</ParamField>
+
+<ParamField path="nombre" type="string" required>
+  Activity name
+</ParamField>
+
+<ParamField path="descripcion" type="string">
+  Activity description
+</ParamField>
+
+<ParamField path="fecha_inicio" type="date" required>
+  Start date (YYYY-MM-DD)
+</ParamField>
+
+<ParamField path="duracion_dias" type="integer" required>
+  Duration in days
+</ParamField>
+
+<ParamField path="responsable_id" type="integer">
+  User ID of responsible person
+</ParamField>
+
+<ParamField path="predecesoras" type="array">
+  Array of predecessor activity IDs
+</ParamField>
+
+**Example Request:**
+
+```javascript
+fetch('/proyectos/actividades/crear/', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-CSRFToken': csrfToken
+  },
+  body: JSON.stringify({
+    proyecto_id: 1,
+    nombre: "Equipment Installation",
+    descripcion: "Install main transformer",
+    fecha_inicio: "2025-06-01",
+    duracion_dias: 15,
+    responsable_id: 5,
+    predecesoras: [3, 4]
+  })
+});
+```
+
+**Response:**
+
+<ResponseField name="id" type="integer">
+  Created activity ID
+</ResponseField>
+
+<ResponseField name="codigo" type="string">
+  Auto-generated activity code
+</ResponseField>
+
+<ResponseField name="estado" type="string">
+  Activity status
+</ResponseField>
+
+### Update Activity Progress
+
+Update the completion percentage of an activity.
+
+**Endpoint:** `POST /proyectos/actividades/<activity_id>/progreso/`
+
+<ParamField path="porcentaje_completado" type="integer" required>
+  Completion percentage (0-100)
+</ParamField>
+
+**Example Request:**
+
+```python
+import requests
+
+response = requests.post(
+    f'https://your-domain.com/proyectos/actividades/{activity_id}/progreso/',
+    data={'porcentaje_completado': 75},
+    cookies={'sessionid': session_cookie}
+)
+```
+
+### Get Project Details
+
+Retrieve complete project information including activities and dependencies.
+
+**Endpoint:** `GET /proyectos/api/proyectos/<project_id>/`
+
+**Response:**
+
+```json
+{
+  "id": 1,
+  "codigo": "PROY-2025-0001",
+  "nombre": "Cooling Tower Replacement",
+  "estado": "EN_CURSO",
+  "fecha_inicio": "2025-01-01",
+  "fecha_fin_planificada": "2025-06-30",
+  "porcentaje_avance": 45.5,
+  "actividades": [
+    {
+      "id": 10,
+      "nombre": "Site Preparation",
+      "fecha_inicio": "2025-01-01",
+      "duracion_dias": 10,
+      "porcentaje_completado": 100,
+      "predecesoras": []
+    },
+    {
+      "id": 11,
+      "nombre": "Equipment Delivery",
+      "fecha_inicio": "2025-01-11",
+      "duracion_dias": 5,
+      "porcentaje_completado": 75,
+      "predecesoras": [10]
+    }
+  ]
+}
+```
+
+### Get Gantt Data
+
+Retrieve project schedule data formatted for Gantt chart rendering.
+
+**Endpoint:** `GET /proyectos/<project_id>/gantt/data/`
+
+**Response:**
+
+```json
+{
+  "tasks": [
+    {
+      "id": "10",
+      "text": "Site Preparation",
+      "start_date": "2025-01-01",
+      "duration": 10,
+      "progress": 1.0,
+      "parent": "1"
+    }
+  ],
+  "links": [
+    {
+      "id": "1",
+      "source": "10",
+      "target": "11",
+      "type": "0"
+    }
+  ]
+}
+```
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Documents API" icon="file" href="/api/documents">
+    Link project documentation
+  </Card>
+  <Card title="Assets API" icon="building" href="/api/assets">
+    Associate activities with locations
+  </Card>
+</CardGroup>

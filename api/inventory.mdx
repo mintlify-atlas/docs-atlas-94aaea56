@@ -1,0 +1,959 @@
+---
+title: Inventory API
+description: Manage materials, stock tracking, and requisitions
+icon: 'warehouse'
+---
+
+## Overview
+
+The Inventory API provides comprehensive inventory and materials management including stock tracking, requisitions, material catalog, and warehouse operations.
+
+**Base Path:** `/inventarios/`
+
+## Material Search
+
+### List Materials
+
+Retrieve materials with pagination and filtering.
+
+```http
+GET /inventarios/api/materials/
+```
+
+<ParamField query="q" type="string">
+  Search query to match against name, SKU, or description
+</ParamField>
+
+<ParamField query="category" type="integer">
+  Filter by category ID
+</ParamField>
+
+<ParamField query="ubicacion" type="integer">
+  Filter by warehouse location ID (only shows materials with stock in that location)
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Page number for pagination
+</ParamField>
+
+#### Response
+
+<ResponseField name="results" type="array">
+  Array of material objects (24 per page)
+  <Expandable title="Material Object">
+    <ResponseField name="id" type="integer">
+      Material ID
+    </ResponseField>
+    <ResponseField name="nombre" type="string">
+      Material name
+    </ResponseField>
+    <ResponseField name="sku" type="string">
+      Stock Keeping Unit code
+    </ResponseField>
+    <ResponseField name="unidad" type="string">
+      Unit of measure (e.g., "Unit", "Meter", "Kilogram")
+    </ResponseField>
+    <ResponseField name="precio_estimado" type="float">
+      Estimated price per unit
+    </ResponseField>
+    <ResponseField name="stock" type="float">
+      Current stock quantity
+    </ResponseField>
+    <ResponseField name="categoria" type="string">
+      Category name
+    </ResponseField>
+    <ResponseField name="image_url" type="string">
+      Material image URL or default SVG
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="has_next" type="boolean">
+  Whether there are more pages
+</ResponseField>
+
+<ResponseField name="num_pages" type="integer">
+  Total number of pages
+</ResponseField>
+
+<ResponseField name="current_page" type="integer">
+  Current page number
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/inventarios/api/materials/?q=bearing&category=5&page=1', {
+  credentials: 'same-origin'
+})
+.then(res => res.json())
+.then(data => console.log(data));
+```
+
+```json Response
+{
+  "results": [
+    {
+      "id": 234,
+      "nombre": "SKF Ball Bearing 6205-2RS",
+      "sku": "BRG-6205-2RS",
+      "unidad": "Unit",
+      "precio_estimado": 25.50,
+      "stock": 45.0,
+      "categoria": "Bearings",
+      "image_url": "https://softcom.ccg.hn/media-proxy/inventarios/bearing_234.jpg"
+    }
+  ],
+  "has_next": false,
+  "num_pages": 1,
+  "current_page": 1
+}
+```
+
+</CodeGroup>
+
+### List Categories
+
+Retrieve material categories in hierarchical tree structure.
+
+```http
+GET /inventarios/api/categories/
+```
+
+#### Response
+
+<ResponseField name="results" type="array">
+  Array of category nodes in tree structure
+  <Expandable title="Category Node">
+    <ResponseField name="id" type="integer">
+      Category ID
+    </ResponseField>
+    <ResponseField name="nombre" type="string">
+      Category name
+    </ResponseField>
+    <ResponseField name="children" type="array">
+      Array of child category nodes (recursive structure)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/inventarios/api/categories/', {
+  credentials: 'same-origin'
+})
+.then(res => res.json())
+.then(data => console.log(data.results));
+```
+
+```json Response
+{
+  "results": [
+    {
+      "id": 5,
+      "nombre": "Bearings",
+      "children": [
+        {
+          "id": 12,
+          "nombre": "Ball Bearings",
+          "children": []
+        },
+        {
+          "id": 13,
+          "nombre": "Roller Bearings",
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+## Material Details
+
+### Get Material Stock
+
+Retrieve stock information for a specific material.
+
+```http
+GET /inventarios/api/stock/{material_id}/
+```
+
+<ParamField path="material_id" type="integer" required>
+  Material ID
+</ParamField>
+
+#### Response
+
+<ResponseField name="material_id" type="integer">
+  Material ID
+</ResponseField>
+
+<ResponseField name="nombre" type="string">
+  Material name
+</ResponseField>
+
+<ResponseField name="sku" type="string">
+  SKU code
+</ResponseField>
+
+<ResponseField name="stock_total" type="float">
+  Total stock across all locations
+</ResponseField>
+
+<ResponseField name="ubicaciones" type="array">
+  Stock by location
+  <Expandable title="Location Stock">
+    <ResponseField name="ubicacion_id" type="integer">
+      Warehouse location ID
+    </ResponseField>
+    <ResponseField name="ubicacion_nombre" type="string">
+      Location name
+    </ResponseField>
+    <ResponseField name="cantidad" type="float">
+      Quantity in this location
+    </ResponseField>
+    <ResponseField name="lotes" type="array">
+      Array of lot/batch information
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="precio_estimado" type="float">
+  Estimated unit price
+</ResponseField>
+
+<ResponseField name="unidad_medida" type="string">
+  Unit of measure
+</ResponseField>
+
+### Get Material by SKU
+
+Search for a material by its SKU code (for barcode scanner).
+
+```http
+GET /inventarios/api/sku/?sku={sku_code}
+```
+
+<ParamField query="sku" type="string" required>
+  SKU code to search
+</ParamField>
+
+#### Response
+
+<ResponseField name="found" type="boolean">
+  Whether material was found
+</ResponseField>
+
+<ResponseField name="material" type="object">
+  Material details (if found)
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/inventarios/api/sku/?sku=BRG-6205-2RS', {
+  credentials: 'same-origin'
+})
+.then(res => res.json())
+.then(data => {
+  if (data.found) {
+    console.log('Material found:', data.material);
+  }
+});
+```
+
+```json Response
+{
+  "found": true,
+  "material": {
+    "id": 234,
+    "nombre": "SKF Ball Bearing 6205-2RS",
+    "sku": "BRG-6205-2RS",
+    "stock": 45.0,
+    "precio_estimado": 25.50,
+    "unidad": "Unit",
+    "categoria": "Bearings",
+    "image_url": "/media-proxy/inventarios/bearing_234.jpg"
+  }
+}
+```
+
+</CodeGroup>
+
+## Shopping Cart
+
+### Add to Cart
+
+Add materials to the requisition cart.
+
+```http
+POST /inventarios/cart/add/
+```
+
+<ParamField body="material_id" type="integer" required>
+  Material ID to add
+</ParamField>
+
+<ParamField body="cantidad" type="float" required>
+  Quantity to request
+</ParamField>
+
+<ParamField body="ubicacion_id" type="integer">
+  Preferred warehouse location
+</ParamField>
+
+<ParamField body="nota" type="string">
+  Optional note for this item
+</ParamField>
+
+#### Response
+
+<ResponseField name="status" type="string">
+  "success" or "error"
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Status message
+</ResponseField>
+
+<ResponseField name="cart_count" type="integer">
+  Total items in cart
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/inventarios/cart/add/', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-CSRFToken': csrfToken
+  },
+  credentials: 'same-origin',
+  body: JSON.stringify({
+    material_id: 234,
+    cantidad: 2,
+    nota: 'For pump P-101 maintenance'
+  })
+});
+```
+
+```json Response
+{
+  "status": "success",
+  "message": "Material added to cart",
+  "cart_count": 3
+}
+```
+
+</CodeGroup>
+
+### Remove from Cart
+
+Remove a material from the cart.
+
+```http
+POST /inventarios/cart/remove/{material_id}/
+```
+
+<ParamField path="material_id" type="integer" required>
+  Material ID to remove
+</ParamField>
+
+### Get Cart Details
+
+Retrieve current cart contents.
+
+```http
+GET /inventarios/cart/detail/
+```
+
+#### Response
+
+<ResponseField name="items" type="array">
+  Array of cart items
+  <Expandable title="Cart Item">
+    <ResponseField name="material_id" type="integer">
+      Material ID
+    </ResponseField>
+    <ResponseField name="nombre" type="string">
+      Material name
+    </ResponseField>
+    <ResponseField name="sku" type="string">
+      SKU code
+    </ResponseField>
+    <ResponseField name="cantidad" type="float">
+      Requested quantity
+    </ResponseField>
+    <ResponseField name="precio_estimado" type="float">
+      Unit price
+    </ResponseField>
+    <ResponseField name="subtotal" type="float">
+      Line total (cantidad × precio)
+    </ResponseField>
+    <ResponseField name="nota" type="string">
+      Item note
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="total" type="float">
+  Cart total value
+</ResponseField>
+
+### Submit Cart (Checkout)
+
+Create a requisition from cart items.
+
+```http
+POST /inventarios/cart/checkout/
+```
+
+<ParamField body="justificacion" type="string" required>
+  Requisition justification/reason
+</ParamField>
+
+<ParamField body="prioridad" type="string" default="NORMAL">
+  Priority level: BAJA, NORMAL, ALTA, URGENTE
+</ParamField>
+
+<ParamField body="fecha_requerida" type="string">
+  Required date (YYYY-MM-DD)
+</ParamField>
+
+<ParamField body="proyecto_id" type="integer">
+  Associated project ID
+</ParamField>
+
+<ParamField body="ot_id" type="integer">
+  Associated work order ID
+</ParamField>
+
+#### Response
+
+<ResponseField name="status" type="string">
+  "success" or "error"
+</ResponseField>
+
+<ResponseField name="solicitud_id" type="integer">
+  Created requisition ID
+</ResponseField>
+
+<ResponseField name="mensaje" type="string">
+  Status message
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/inventarios/cart/checkout/', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-CSRFToken': csrfToken
+  },
+  credentials: 'same-origin',
+  body: JSON.stringify({
+    justificacion: 'Bearings needed for scheduled pump maintenance',
+    prioridad: 'ALTA',
+    fecha_requerida: '2024-03-20',
+    ot_id: 1523
+  })
+});
+```
+
+```json Response
+{
+  "status": "success",
+  "solicitud_id": 789,
+  "mensaje": "Requisition created successfully"
+}
+```
+
+</CodeGroup>
+
+## Requisitions
+
+### List Requisitions
+
+Search and filter material requisitions.
+
+```http
+GET /inventarios/api/solicitudes/search/
+```
+
+<ParamField query="q" type="string">
+  Search query
+</ParamField>
+
+<ParamField query="estado" type="string">
+  Filter by status: PENDIENTE, APROBADA, EN_PROCESO, DESPACHADA, RECHAZADA
+</ParamField>
+
+<ParamField query="usuario_id" type="integer">
+  Filter by requesting user
+</ParamField>
+
+<ParamField query="fecha_desde" type="string">
+  Start date filter (YYYY-MM-DD)
+</ParamField>
+
+<ParamField query="fecha_hasta" type="string">
+  End date filter (YYYY-MM-DD)
+</ParamField>
+
+#### Response
+
+<ResponseField name="results" type="array">
+  Array of requisition objects
+  <Expandable title="Requisition Object">
+    <ResponseField name="id" type="integer">
+      Requisition ID
+    </ResponseField>
+    <ResponseField name="codigo" type="string">
+      Requisition code
+    </ResponseField>
+    <ResponseField name="solicitante" type="string">
+      Requesting user name
+    </ResponseField>
+    <ResponseField name="justificacion" type="string">
+      Justification text
+    </ResponseField>
+    <ResponseField name="prioridad" type="string">
+      Priority level
+    </ResponseField>
+    <ResponseField name="estado" type="string">
+      Current status
+    </ResponseField>
+    <ResponseField name="fecha_solicitud" type="string">
+      Request date
+    </ResponseField>
+    <ResponseField name="fecha_requerida" type="string">
+      Required date
+    </ResponseField>
+    <ResponseField name="total_items" type="integer">
+      Number of line items
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Get Requisition Items
+
+Retrieve detailed line items for a requisition.
+
+```http
+GET /inventarios/api/solicitudes/{pk}/items/
+```
+
+<ParamField path="pk" type="string" required>
+  Requisition ID or code
+</ParamField>
+
+#### Response
+
+<ResponseField name="solicitud" type="object">
+  Requisition header information
+</ResponseField>
+
+<ResponseField name="items" type="array">
+  Array of line items
+  <Expandable title="Line Item">
+    <ResponseField name="id" type="integer">
+      Item ID
+    </ResponseField>
+    <ResponseField name="material" type="object">
+      Material details
+    </ResponseField>
+    <ResponseField name="cantidad_solicitada" type="float">
+      Requested quantity
+    </ResponseField>
+    <ResponseField name="cantidad_aprobada" type="float">
+      Approved quantity
+    </ResponseField>
+    <ResponseField name="cantidad_despachada" type="float">
+      Dispatched quantity
+    </ResponseField>
+    <ResponseField name="precio_unitario" type="float">
+      Unit price
+    </ResponseField>
+    <ResponseField name="subtotal" type="float">
+      Line total
+    </ResponseField>
+    <ResponseField name="nota" type="string">
+      Item notes
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Warehouse Operations
+
+### Pending Requisitions for Warehouse
+
+Get requisitions pending dispatch (warehouse view).
+
+```http
+GET /inventarios/api/pedidos-pendientes/
+```
+
+<ParamField query="ubicacion_id" type="integer">
+  Filter by warehouse location
+</ParamField>
+
+#### Response
+
+<ResponseField name="requisiciones" type="array">
+  Array of pending requisitions with stock availability
+</ResponseField>
+
+### Get Requisition Details for Warehouse
+
+Retrieve requisition with stock allocation details.
+
+```http
+GET /inventarios/api/pedidos/{pk}/detalle/
+```
+
+<ParamField path="pk" type="integer" required>
+  Requisition ID
+</ParamField>
+
+#### Response
+
+<ResponseField name="solicitud" type="object">
+  Requisition details
+</ResponseField>
+
+<ResponseField name="items" type="array">
+  Items with stock availability
+  <Expandable title="Item with Stock">
+    <ResponseField name="material" type="object">
+      Material information
+    </ResponseField>
+    <ResponseField name="cantidad_solicitada" type="float">
+      Requested quantity
+    </ResponseField>
+    <ResponseField name="stock_disponible" type="float">
+      Available stock
+    </ResponseField>
+    <ResponseField name="ubicaciones_stock" type="array">
+      Stock by warehouse location
+    </ResponseField>
+    <ResponseField name="puede_despachar" type="boolean">
+      Whether sufficient stock is available
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Dispatch Requisition
+
+Process and dispatch materials from warehouse.
+
+```http
+POST /inventarios/api/pedidos/{pk}/despachar/
+```
+
+<ParamField path="pk" type="integer" required>
+  Requisition ID
+</ParamField>
+
+<ParamField body="items" type="array" required>
+  Array of dispatch items
+  <Expandable title="Dispatch Item">
+    <ParamField body="item_id" type="integer" required>
+      Requisition item ID
+    </ParamField>
+    <ParamField body="cantidad" type="float" required>
+      Quantity to dispatch
+    </ParamField>
+    <ParamField body="lote_id" type="integer">
+      Specific lot/batch ID
+    </ParamField>
+    <ParamField body="ubicacion_id" type="integer" required>
+      Warehouse location to dispatch from
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="notas" type="string">
+  Dispatch notes
+</ParamField>
+
+#### Response
+
+<ResponseField name="status" type="string">
+  "success" or "error"
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Status message
+</ResponseField>
+
+<ResponseField name="movimientos" type="array">
+  Array of created inventory movement IDs
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/inventarios/api/pedidos/789/despachar/', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-CSRFToken': csrfToken
+  },
+  credentials: 'same-origin',
+  body: JSON.stringify({
+    items: [
+      {
+        item_id: 1001,
+        cantidad: 2,
+        ubicacion_id: 5
+      }
+    ],
+    notas: 'Dispatched for OT-2024-1523'
+  })
+});
+```
+
+```json Response
+{
+  "status": "success",
+  "message": "Requisition dispatched successfully",
+  "movimientos": [5678, 5679]
+}
+```
+
+</CodeGroup>
+
+## Quick Operations
+
+### Register Quick Movement
+
+Quickly register an inventory movement (for mobile/scanner).
+
+```http
+POST /inventarios/api/movimiento-rapido/
+```
+
+<ParamField body="material_id" type="integer" required>
+  Material ID
+</ParamField>
+
+<ParamField body="tipo" type="string" required>
+  Movement type: ENTRADA, SALIDA, AJUSTE, TRANSFERENCIA
+</ParamField>
+
+<ParamField body="cantidad" type="float" required>
+  Quantity (positive or negative)
+</ParamField>
+
+<ParamField body="ubicacion_origen_id" type="integer">
+  Source location (for transfers/exits)
+</ParamField>
+
+<ParamField body="ubicacion_destino_id" type="integer">
+  Destination location (for transfers/entries)
+</ParamField>
+
+<ParamField body="motivo" type="string" required>
+  Reason for movement
+</ParamField>
+
+<ParamField body="documento_referencia" type="string">
+  Reference document (PO, invoice, etc.)
+</ParamField>
+
+#### Response
+
+<ResponseField name="status" type="string">
+  "success" or "error"
+</ResponseField>
+
+<ResponseField name="movimiento_id" type="integer">
+  Created movement ID
+</ResponseField>
+
+### Create Material (Quick)
+
+Quickly create a new material from requisition flow.
+
+```http
+POST /inventarios/api/material/quick-create/
+```
+
+<ParamField body="nombre" type="string" required>
+  Material name
+</ParamField>
+
+<ParamField body="categoria_id" type="integer" required>
+  Category ID
+</ParamField>
+
+<ParamField body="unidad_medida_id" type="integer" required>
+  Unit of measure ID
+</ParamField>
+
+<ParamField body="sku" type="string">
+  Optional SKU code (auto-generated if omitted)
+</ParamField>
+
+<ParamField body="precio_estimado" type="float">
+  Estimated unit price
+</ParamField>
+
+<ParamField body="descripcion" type="string">
+  Material description
+</ParamField>
+
+## Lot Management
+
+### Register Incoming Lot
+
+Register a new lot/batch of material.
+
+```http
+POST /inventarios/api/ingreso-lote/
+```
+
+<ParamField body="material_id" type="integer" required>
+  Material ID
+</ParamField>
+
+<ParamField body="cantidad" type="float" required>
+  Incoming quantity
+</ParamField>
+
+<ParamField body="ubicacion_id" type="integer" required>
+  Warehouse location
+</ParamField>
+
+<ParamField body="numero_lote" type="string" required>
+  Lot/batch number
+</ParamField>
+
+<ParamField body="fecha_fabricacion" type="string">
+  Manufacturing date (YYYY-MM-DD)
+</ParamField>
+
+<ParamField body="fecha_vencimiento" type="string">
+  Expiration date (YYYY-MM-DD)
+</ParamField>
+
+<ParamField body="proveedor" type="string">
+  Supplier name
+</ParamField>
+
+<ParamField body="costo_unitario" type="float">
+  Unit cost
+</ParamField>
+
+<ParamField body="documento_referencia" type="string">
+  Reference document (PO, invoice)
+</ParamField>
+
+## Label Printing
+
+### Print Material Label
+
+Generate a printable label for a material (barcode/QR code).
+
+```http
+POST /inventarios/api/print-label/{material_id}/
+```
+
+<ParamField path="material_id" type="integer" required>
+  Material ID
+</ParamField>
+
+<ParamField body="cantidad" type="integer" default="1">
+  Number of labels to print
+</ParamField>
+
+<ParamField body="include_qr" type="boolean" default="true">
+  Include QR code
+</ParamField>
+
+<ParamField body="include_barcode" type="boolean" default="true">
+  Include barcode (Code 128)
+</ParamField>
+
+#### Response
+
+<ResponseField name="pdf_url" type="string">
+  URL to download PDF with labels
+</ResponseField>
+
+### Generate Label PDF
+
+Generate PDF with multiple labels.
+
+```http
+POST /inventarios/etiquetas/generar-pdf/
+```
+
+<ParamField body="materials" type="array" required>
+  Array of material IDs
+</ParamField>
+
+<ParamField body="copies_per_material" type="integer" default="1">
+  Copies of each label
+</ParamField>
+
+<ParamField body="include_price" type="boolean" default="false">
+  Include price on label
+</ParamField>
+
+## Mobile Endpoints
+
+### Mobile Order List
+
+Get requisitions for mobile view.
+
+```http
+GET /inventarios/mobile/pedidos/
+```
+
+### Mobile Order Detail
+
+Get requisition details for mobile.
+
+```http
+GET /inventarios/mobile/pedidos/{pk}/
+```
+
+<ParamField path="pk" type="integer" required>
+  Requisition ID
+</ParamField>
+
+## Configuration
+
+### Key Settings
+
+```python
+# energia/settings.py
+
+# File upload limits
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50 MB
+
+# n8n Integration for material requests
+N8N_SOLICITUD_WEBHOOK_URL = os.environ.get(
+    'N8N_SOLICITUD_WEBHOOK_URL', 
+    'http://n8n:5678/webhook/solicitud-material'
+)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Overview" icon="api" href="/api/overview">
+    Return to API overview
+  </Card>
+  <Card title="Authentication" icon="lock" href="/api/authentication">
+    Learn about authentication
+  </Card>
+</CardGroup>

@@ -1,0 +1,230 @@
+---
+title: API Overview
+description: Comprehensive guide to the Energy CMMS REST API
+icon: 'api'
+---
+
+## Introduction
+
+The Energy CMMS API provides programmatic access to the Computerized Maintenance Management System for energy infrastructure. Built on Django REST Framework, it enables integration with external systems for asset management, maintenance operations, document management, and inventory control.
+
+## Base URL
+
+```bash
+https://softcom.ccg.hn
+```
+
+For local development:
+```bash
+http://localhost:8000
+```
+
+## API Architecture
+
+The API follows RESTful principles and is organized into the following main modules:
+
+<CardGroup cols={2}>
+  <Card title="Assets" icon="building" href="/api/assets">
+    Manage assets, locations, categories, and hierarchies
+  </Card>
+  <Card title="Maintenance" icon="tools" href="/api/maintenance">
+    Work orders, routines, schedules, and maintenance operations
+  </Card>
+  <Card title="Documents" icon="file-alt" href="/api/documents">
+    Document management with AI-powered search and processing
+  </Card>
+  <Card title="Inventory" icon="warehouse" href="/api/inventory">
+    Materials, stock tracking, and requisitions
+  </Card>
+</CardGroup>
+
+## Authentication
+
+All API endpoints require authentication using Django's session-based authentication or token-based authentication. See the [Authentication](/api/authentication) section for details.
+
+<Note>
+Most endpoints require the `@login_required` or `@staff_member_required` decorator, ensuring only authenticated users can access the API.
+</Note>
+
+## Request Format
+
+The API accepts requests with the following content types:
+
+- `application/json` - For JSON payloads
+- `application/x-www-form-urlencoded` - For form data
+- `multipart/form-data` - For file uploads
+
+### Standard Request Headers
+
+```http
+Content-Type: application/json
+X-CSRFToken: <csrf-token>
+Cookie: sessionid=<session-id>
+```
+
+## Response Format
+
+All API responses are returned in JSON format with consistent structure:
+
+### Success Response
+
+```json
+{
+  "status": "success",
+  "data": {
+    // Response data here
+  }
+}
+```
+
+### Error Response
+
+```json
+{
+  "status": "error",
+  "message": "Error description",
+  "errors": {
+    "field_name": ["Validation error message"]
+  }
+}
+```
+
+## HTTP Status Codes
+
+The API uses standard HTTP status codes:
+
+| Code | Description |
+|------|-------------|
+| 200 | Success - Request completed successfully |
+| 201 | Created - Resource created successfully |
+| 400 | Bad Request - Invalid request parameters |
+| 401 | Unauthorized - Authentication required |
+| 403 | Forbidden - Insufficient permissions |
+| 404 | Not Found - Resource not found |
+| 405 | Method Not Allowed - HTTP method not supported |
+| 500 | Internal Server Error - Server error occurred |
+
+## Pagination
+
+Endpoints that return lists support pagination using Django's Paginator:
+
+```python
+page_number = request.GET.get('page', 1)
+paginator = Paginator(queryset, 24)
+page_obj = paginator.get_page(page_number)
+```
+
+### Pagination Response
+
+```json
+{
+  "results": [...],
+  "has_next": true,
+  "num_pages": 5,
+  "current_page": 1
+}
+```
+
+## Filtering and Search
+
+Many endpoints support filtering via query parameters:
+
+```bash
+GET /api/endpoint/?q=search&category=5&page=1
+```
+
+Common filter parameters:
+- `q` - Full-text search query
+- `category` or `cat_id` - Filter by category ID
+- `ubicacion_id` or `loc_id` - Filter by location ID
+- `page` - Page number for pagination
+
+## CORS Configuration
+
+The API supports CORS with the following configuration:
+
+```python
+CORS_ALLOW_ALL_ORIGINS = True
+```
+
+<Warning>
+In production, CORS should be restricted to specific origins for security.
+</Warning>
+
+## Rate Limiting
+
+Currently, the API does not enforce rate limiting. However, it's recommended to:
+- Implement request throttling in production
+- Use connection pooling for database queries
+- Cache frequently accessed data
+
+## Common Query Optimizations
+
+The API uses Django ORM optimizations to reduce database queries:
+
+```python
+# Prefetch related objects
+queryset.select_related('model__category', 'location')
+
+# Prefetch many-to-many relationships
+queryset.prefetch_related('components', 'work_orders')
+
+# Annotate aggregations
+queryset.annotate(num_children=Count('components'))
+```
+
+## WebSocket Support
+
+For real-time updates, the system uses polling-based progress tracking:
+
+```javascript
+// Poll for task progress
+setInterval(() => {
+  fetch(`/api/task-progress/${taskId}/`)
+    .then(res => res.json())
+    .then(data => updateProgress(data));
+}, 1000);
+```
+
+## Error Handling
+
+The API implements comprehensive error handling:
+
+```python
+try:
+    # API operation
+    return JsonResponse({'status': 'success', 'data': result})
+except ObjectDoesNotExist:
+    return JsonResponse({'error': 'Resource not found'}, status=404)
+except Exception as e:
+    return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+```
+
+## Async Task Processing
+
+Long-running operations use Celery for background processing:
+
+```python
+from celery.result import AsyncResult
+
+task = AsyncResult(task_id)
+if task.state == 'PROGRESS':
+    progress = task.info.get('percent', 0)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="lock" href="/api/authentication">
+    Learn how to authenticate API requests
+  </Card>
+  <Card title="Assets API" icon="building" href="/api/assets">
+    Explore asset management endpoints
+  </Card>
+  <Card title="Maintenance API" icon="tools" href="/api/maintenance">
+    Work with maintenance operations
+  </Card>
+  <Card title="Documents API" icon="file-alt" href="/api/documents">
+    Manage documents and search
+  </Card>
+</CardGroup>

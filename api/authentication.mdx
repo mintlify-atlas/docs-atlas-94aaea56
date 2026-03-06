@@ -1,0 +1,360 @@
+---
+title: Authentication
+description: Authenticate and secure your API requests
+icon: 'lock'
+---
+
+## Overview
+
+The Energy CMMS API uses Django's built-in authentication system with session-based authentication. All API endpoints require authentication, with most requiring staff member permissions.
+
+## Authentication Methods
+
+### Session Authentication (Primary)
+
+The API uses Django's session-based authentication, which requires:
+1. Login through the admin interface
+2. CSRF token for state-changing requests
+3. Session cookie for subsequent requests
+
+### Login Configuration
+
+```python
+# energia/settings.py
+LOGIN_URL = '/admin/login/'
+LOGIN_REDIRECT_URL = '/app/'
+```
+
+## Making Authenticated Requests
+
+### Step 1: Obtain CSRF Token
+
+For AJAX requests, include the CSRF token in your headers:
+
+```javascript
+const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+fetch('/api/endpoint/', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-CSRFToken': csrfToken
+  },
+  credentials: 'same-origin',
+  body: JSON.stringify(data)
+});
+```
+
+### Step 2: Include Session Cookie
+
+The session cookie is automatically included in same-origin requests. For cross-origin requests:
+
+```javascript
+fetch('https://softcom.ccg.hn/api/endpoint/', {
+  credentials: 'include',
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+```
+
+## Authentication Decorators
+
+### @login_required
+
+Requires user to be authenticated:
+
+```python
+from django.contrib.auth.decorators import login_required
+
+@login_required
+def api_endpoint(request):
+    # Only authenticated users can access
+    return JsonResponse({'status': 'success'})
+```
+
+### @staff_member_required
+
+Requires user to be staff member:
+
+```python
+from django.contrib.admin.views.decorators import staff_member_required
+
+@staff_member_required
+def admin_api_endpoint(request):
+    # Only staff members can access
+    return JsonResponse({'status': 'success'})
+```
+
+## CSRF Protection
+
+### CSRF Configuration
+
+```python
+# energia/settings.py
+CSRF_TRUSTED_ORIGINS = [
+    'https://softcom.ccg.hn',
+    'http://softcom.ccg.hn',
+    'https://*.ccg.hn',
+    'http://10.30.1.11',
+    'http://127.0.0.1:8000'
+]
+```
+
+### Bypassing CSRF (Not Recommended)
+
+For specific endpoints that require external access without CSRF:
+
+```python
+from django.views.decorators.csrf import csrf_exempt
+
+@csrf_exempt
+def webhook_endpoint(request):
+    # External webhooks without CSRF protection
+    return JsonResponse({'status': 'received'})
+```
+
+<Warning>
+Only use `@csrf_exempt` for webhook endpoints that validate requests through other means (e.g., signature verification).
+</Warning>
+
+## Request Examples
+
+### GET Request
+
+<CodeGroup>
+
+```javascript JavaScript (Fetch)
+fetch('/activos/api/buscar-activos-json/?q=pump&cat_id=5', {
+  credentials: 'same-origin',
+  headers: {
+    'Accept': 'application/json'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data.results));
+```
+
+```python Python (Requests)
+import requests
+
+session = requests.Session()
+
+# Login first
+login_data = {'username': 'admin', 'password': 'password'}
+session.post('https://softcom.ccg.hn/admin/login/', data=login_data)
+
+# Make authenticated request
+response = session.get('https://softcom.ccg.hn/activos/api/buscar-activos-json/', 
+                       params={'q': 'pump', 'cat_id': 5})
+data = response.json()
+```
+
+```bash cURL
+curl -X GET \
+  'https://softcom.ccg.hn/activos/api/buscar-activos-json/?q=pump&cat_id=5' \
+  -H 'Cookie: sessionid=YOUR_SESSION_ID' \
+  -H 'Accept: application/json'
+```
+
+</CodeGroup>
+
+### POST Request
+
+<CodeGroup>
+
+```javascript JavaScript (Fetch)
+const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+fetch('/activos/api/guardar-pin/', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-CSRFToken': csrfToken
+  },
+  credentials: 'same-origin',
+  body: JSON.stringify({
+    visor_id: 1,
+    activo_id: 123,
+    x: 150.5,
+    y: 200.3,
+    color: '#FF0000',
+    nota: 'Equipment location'
+  })
+})
+.then(response => response.json())
+.then(data => console.log(data));
+```
+
+```python Python (Requests)
+import requests
+
+session = requests.Session()
+
+# Get CSRF token
+response = session.get('https://softcom.ccg.hn/admin/login/')
+csrf_token = session.cookies['csrftoken']
+
+# Make authenticated POST
+response = session.post(
+    'https://softcom.ccg.hn/activos/api/guardar-pin/',
+    json={
+        'visor_id': 1,
+        'activo_id': 123,
+        'x': 150.5,
+        'y': 200.3,
+        'color': '#FF0000',
+        'nota': 'Equipment location'
+    },
+    headers={'X-CSRFToken': csrf_token}
+)
+```
+
+```bash cURL
+curl -X POST \
+  'https://softcom.ccg.hn/activos/api/guardar-pin/' \
+  -H 'Content-Type: application/json' \
+  -H 'Cookie: sessionid=YOUR_SESSION_ID; csrftoken=YOUR_CSRF_TOKEN' \
+  -H 'X-CSRFToken: YOUR_CSRF_TOKEN' \
+  -d '{
+    "visor_id": 1,
+    "activo_id": 123,
+    "x": 150.5,
+    "y": 200.3,
+    "color": "#FF0000",
+    "nota": "Equipment location"
+  }'
+```
+
+</CodeGroup>
+
+## User Permissions
+
+### Accessing Current User
+
+In API views, access the authenticated user:
+
+```python
+@login_required
+def my_endpoint(request):
+    user = request.user
+    
+    # Check permissions
+    if user.has_perm('activos.view_activo'):
+        # User has permission
+        pass
+    
+    # Check staff status
+    if user.is_staff:
+        # User is staff member
+        pass
+```
+
+### Permission Checks
+
+```python
+from django.contrib.auth.models import User
+
+# Check specific permission
+if request.user.has_perm('mantenimiento.add_ordentrabajo'):
+    # Can create work orders
+    pass
+
+# Check multiple permissions
+if request.user.has_perms(['activos.view_activo', 'activos.change_activo']):
+    # Can view and edit assets
+    pass
+```
+
+## Security Best Practices
+
+### HTTPS in Production
+
+```python
+# energia/settings.py (Production)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
+```
+
+### Session Security
+
+```python
+# Recommended production settings
+SESSION_COOKIE_SECURE = True  # Only send cookie over HTTPS
+SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access
+SESSION_COOKIE_SAMESITE = 'Lax'  # CSRF protection
+```
+
+### Password Validation
+
+```python
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+]
+```
+
+## Error Responses
+
+### 401 Unauthorized
+
+```json
+{
+  "error": "Authentication required",
+  "redirect": "/admin/login/"
+}
+```
+
+### 403 Forbidden
+
+```json
+{
+  "error": "Permission denied",
+  "required_permission": "activos.change_activo"
+}
+```
+
+## Testing Authentication
+
+Test API authentication locally:
+
+```python
+from django.test import Client
+from django.contrib.auth.models import User
+
+client = Client()
+
+# Create test user
+user = User.objects.create_user('testuser', 'test@example.com', 'password')
+user.is_staff = True
+user.save()
+
+# Login
+client.login(username='testuser', password='password')
+
+# Make authenticated request
+response = client.get('/activos/api/buscar-activos-json/')
+assert response.status_code == 200
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Assets API" icon="building" href="/api/assets">
+    Learn about asset management endpoints
+  </Card>
+  <Card title="Maintenance API" icon="tools" href="/api/maintenance">
+    Explore maintenance operations
+  </Card>
+</CardGroup>

@@ -1,0 +1,304 @@
+---
+title: Installation
+description: Install and set up Energy CMMS on your system
+---
+
+## Prerequisites
+
+Before installing Energy CMMS, ensure you have the following prerequisites:
+
+- Python 3.11 or higher
+- PostgreSQL 12 or higher
+- Redis 7.x
+- Git
+- Docker and Docker Compose (for containerized deployment)
+
+<Warning>
+Energy CMMS requires a PostgreSQL database with the `pgvector` extension for AI-powered semantic search functionality.
+</Warning>
+
+## Installation Methods
+
+<CodeGroup>
+
+```bash Local Development
+# Clone the repository
+git clone <repository-url>
+cd energia
+
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Install Playwright browsers (for PDF processing)
+playwright install --with-deps chromium
+
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your configuration
+
+# Run database migrations
+python manage.py migrate
+
+# Create superuser
+python manage.py createsuperuser
+
+# Collect static files
+python manage.py collectstatic --noinput
+
+# Start development server
+python manage.py runserver
+```
+
+```bash Docker Compose
+# Clone the repository
+git clone <repository-url>
+cd energia
+
+# Configure environment variables
+cp .env.example .env
+# Edit .env with your configuration
+
+# Build and start services
+docker-compose up -d
+
+# Run migrations
+docker-compose exec web python manage.py migrate
+
+# Create superuser
+docker-compose exec web python manage.py createsuperuser
+
+# Collect static files
+docker-compose exec web python manage.py collectstatic --noinput
+```
+
+```bash Coolify Deployment
+# 1. Push your code to Git
+git add .
+git commit -m "Initial commit"
+git push
+
+# 2. In Coolify Dashboard:
+# - Create New Resource → Docker Compose
+# - Connect your Git repository
+# - Configure environment variables (see Configuration)
+# - Deploy
+
+# 3. Run initial setup commands via Coolify terminal
+# Access: Coolify UI → Your Project → web → Terminal
+python manage.py migrate
+python manage.py createsuperuser
+```
+
+</CodeGroup>
+
+## Core Dependencies
+
+Energy CMMS includes the following major dependencies:
+
+### Framework & Web Server
+- **Django 5.1.5+**: Core web framework
+- **Gunicorn**: WSGI HTTP server for production
+- **WhiteNoise**: Static file serving
+
+### Database & ORM
+- **psycopg 3.2.3**: PostgreSQL adapter
+- **dj-database-url**: Database URL parser
+- **pgvector**: Vector similarity search for AI features
+
+### Task Queue & Caching
+- **Celery 5.4.0**: Distributed task queue
+- **Redis 5.2.1**: Message broker and cache backend
+- **django-celery-results**: Task result storage
+- **Channels**: WebSocket support
+- **channels-redis**: Redis channel layer
+
+### Admin Interface
+- **django-jazzmin 3.0.1**: Modern admin theme
+- **django-import-export 4.3.8**: Data import/export functionality
+- **django-mptt**: Hierarchical data structures
+- **django-colorfield**: Color picker fields
+
+### File Processing & Storage
+- **Pillow 11.2.1**: Image processing
+- **django-storages**: Cloud storage backends
+- **boto3**: AWS S3/MinIO integration
+- **Playwright**: Automated PDF processing
+
+### Data Analysis & Visualization
+- **pandas 2.3.0**: Data manipulation
+- **numpy 2.3.1**: Numerical computing
+- **matplotlib**: Data visualization
+- **openpyxl**: Excel file handling
+
+### AI & Machine Learning
+- **google-generativeai**: Google Gemini AI integration
+- **msal**: Microsoft authentication (for Dynamics 365 integration)
+
+### Utilities
+- **python-dotenv**: Environment variable management
+- **requests**: HTTP library
+- **qrcode**: QR code generation
+- **django-cors-headers**: CORS handling
+
+## Post-Installation Steps
+
+<Steps>
+
+<Step title="Verify Installation">
+
+Check that all services are running correctly:
+
+```bash
+# Check Django is running
+curl http://localhost:8000/admin/
+
+# Check Redis connection
+redis-cli ping  # Should return: PONG
+
+# Check Celery worker
+celery -A energia inspect ping
+```
+
+</Step>
+
+<Step title="Configure Storage">
+
+Energy CMMS uses MinIO (S3-compatible storage) for media files. Ensure your MinIO instance is running and accessible:
+
+```bash
+# Test MinIO connection
+curl http://your-minio-host:9000/minio/health/live
+```
+
+</Step>
+
+<Step title="Set Up AI Features (Optional)">
+
+To enable AI-powered semantic search and document processing:
+
+1. Obtain a Google Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Add to your `.env` file:
+   ```bash
+   GEMINI_API_KEY=your-api-key-here
+   ```
+
+<Warning>
+Without a Gemini API key, semantic search functionality will not be available.
+</Warning>
+
+</Step>
+
+<Step title="Configure n8n Integration (Optional)">
+
+For workflow automation and document processing:
+
+1. Set up n8n instance
+2. Configure webhooks in your `.env`:
+   ```bash
+   N8N_WEBHOOK_URL=http://n8n:5678/webhook/nuevo-documento
+   N8N_CHAT_WEBHOOK_URL=http://n8n:5678/webhook/chat-documento
+   N8N_EXTRACT_TEXTO_WEBHOOK_URL=http://n8n:5678/webhook/extract-text
+   ```
+
+</Step>
+
+<Step title="Access the Application">
+
+Open your browser and navigate to:
+- Admin interface: `http://localhost:8000/admin/`
+- Main portal: `http://localhost:8000/portal/`
+
+</Step>
+
+</Steps>
+
+## Docker Compose Services
+
+The `docker-compose.yml` includes the following services:
+
+| Service | Description | Port | Memory |
+|---------|-------------|------|--------|
+| **web** | Django + Gunicorn (3 workers) | 8000 | ~300-500MB |
+| **redis** | Message broker & cache | 6379 | ~50-100MB |
+| **celery_worker** | Background task processor | - | ~200-300MB |
+| **celery_beat** | Periodic task scheduler | - | ~100-150MB |
+
+<Note>
+Total resource usage: approximately 650-1050MB RAM
+</Note>
+
+## Troubleshooting
+
+### Installation Fails on Playwright
+
+```bash
+# Install system dependencies manually
+sudo apt-get update
+sudo apt-get install -y libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
+  libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
+  libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2
+
+# Then retry Playwright installation
+playwright install chromium
+```
+
+### Database Connection Error
+
+If you see `OperationalError: could not connect to server`:
+
+1. Verify PostgreSQL is running:
+   ```bash
+   sudo systemctl status postgresql
+   ```
+
+2. Check your `DATABASE_URL` format:
+   ```bash
+   postgresql://user:password@host:5432/database_name
+   ```
+
+3. Ensure the database exists:
+   ```bash
+   createdb energia_db
+   ```
+
+### Redis Connection Failed
+
+If Celery cannot connect to Redis:
+
+```bash
+# Check Redis is running
+systemctl status redis
+
+# Test connection
+redis-cli ping
+
+# Verify CELERY_BROKER_URL in .env matches your Redis configuration
+```
+
+### Import Errors
+
+If you encounter module import errors:
+
+```bash
+# Ensure virtual environment is activated
+source venv/bin/activate
+
+# Reinstall dependencies
+pip install -r requirements.txt --force-reinstall
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/getting-started/configuration">
+    Configure environment variables and settings
+  </Card>
+  <Card title="First Steps" icon="rocket" href="/getting-started/first-steps">
+    Learn how to use Energy CMMS
+  </Card>
+</CardGroup>

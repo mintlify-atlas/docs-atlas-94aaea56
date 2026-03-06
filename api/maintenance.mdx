@@ -1,0 +1,705 @@
+---
+title: Maintenance API
+description: Manage work orders, routines, schedules, and maintenance operations
+icon: 'tools'
+---
+
+## Overview
+
+The Maintenance API provides endpoints for managing preventive and corrective maintenance operations, work orders, routines, schedules, and maintenance notifications.
+
+**Base Path:** `/mantenimiento/`
+
+## Work Order Search
+
+### Search Work Orders
+
+Search for work orders by various criteria.
+
+```http
+GET /mantenimiento/api/search-ordenes/
+```
+
+<ParamField query="q" type="string">
+  Search query for work order details
+</ParamField>
+
+<ParamField query="estado" type="string">
+  Filter by status: PENDIENTE, EN_PROGRESO, COMPLETADA, CANCELADA
+</ParamField>
+
+<ParamField query="tipo" type="string">
+  Filter by type: PREVENTIVA, CORRECTIVA
+</ParamField>
+
+<ParamField query="fecha_desde" type="string">
+  Start date filter (YYYY-MM-DD)
+</ParamField>
+
+<ParamField query="fecha_hasta" type="string">
+  End date filter (YYYY-MM-DD)
+</ParamField>
+
+#### Response
+
+<ResponseField name="results" type="array">
+  Array of work order objects
+  <Expandable title="Work Order Object">
+    <ResponseField name="id" type="integer">
+      Work order ID
+    </ResponseField>
+    <ResponseField name="codigo" type="string">
+      Work order code
+    </ResponseField>
+    <ResponseField name="tipo" type="string">
+      Type: PREVENTIVA or CORRECTIVA
+    </ResponseField>
+    <ResponseField name="estado" type="string">
+      Current status
+    </ResponseField>
+    <ResponseField name="rutina_nombre" type="string">
+      Associated routine name (for preventive)
+    </ResponseField>
+    <ResponseField name="inicio_programado" type="string">
+      Scheduled start date/time
+    </ResponseField>
+    <ResponseField name="activos" type="array">
+      Array of associated asset IDs
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/mantenimiento/api/search-ordenes/?estado=PENDIENTE&tipo=PREVENTIVA', {
+  credentials: 'same-origin'
+})
+.then(res => res.json())
+.then(data => console.log(data.results));
+```
+
+```json Response
+{
+  "results": [
+    {
+      "id": 1523,
+      "codigo": "OT-2024-1523",
+      "tipo": "PREVENTIVA",
+      "estado": "PENDIENTE",
+      "rutina_nombre": "Monthly Pump Inspection",
+      "inicio_programado": "2024-03-15T08:00:00Z",
+      "activos": [123, 124, 125]
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+## Work Order Details
+
+### Get Work Order Details
+
+Retrieve detailed information about a specific work order.
+
+```http
+GET /mantenimiento/api/ot/{pk}/detalle/
+```
+
+<ParamField path="pk" type="integer" required>
+  Work order ID
+</ParamField>
+
+#### Response
+
+<ResponseField name="id" type="integer">
+  Work order ID
+</ResponseField>
+
+<ResponseField name="codigo" type="string">
+  Work order code
+</ResponseField>
+
+<ResponseField name="tipo" type="string">
+  PREVENTIVA or CORRECTIVA
+</ResponseField>
+
+<ResponseField name="estado" type="string">
+  Current status
+</ResponseField>
+
+<ResponseField name="rutina" type="object">
+  <Expandable title="Routine Details">
+    <ResponseField name="id" type="integer">
+      Routine ID
+    </ResponseField>
+    <ResponseField name="nombre" type="string">
+      Routine name
+    </ResponseField>
+    <ResponseField name="descripcion" type="string">
+      Routine description
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="activos" type="array">
+  Array of asset objects
+</ResponseField>
+
+<ResponseField name="procedimientos" type="array">
+  Array of procedure steps
+  <Expandable title="Procedure Step">
+    <ResponseField name="orden" type="integer">
+      Step order
+    </ResponseField>
+    <ResponseField name="descripcion" type="string">
+      Step description
+    </ResponseField>
+    <ResponseField name="completado" type="boolean">
+      Whether step is completed
+    </ResponseField>
+    <ResponseField name="valor" type="string">
+      Recorded value or observation
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="inicio_programado" type="string">
+  Scheduled start datetime
+</ResponseField>
+
+<ResponseField name="fin_programado" type="string">
+  Scheduled end datetime
+</ResponseField>
+
+<ResponseField name="inicio_real" type="string">
+  Actual start datetime
+</ResponseField>
+
+<ResponseField name="fin_real" type="string">
+  Actual end datetime
+</ResponseField>
+
+<ResponseField name="tecnico_asignado" type="string">
+  Assigned technician name
+</ResponseField>
+
+<ResponseField name="notas" type="string">
+  Work order notes
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/mantenimiento/api/ot/1523/detalle/', {
+  credentials: 'same-origin'
+})
+.then(res => res.json())
+.then(data => console.log(data));
+```
+
+```json Response
+{
+  "id": 1523,
+  "codigo": "OT-2024-1523",
+  "tipo": "PREVENTIVA",
+  "estado": "EN_PROGRESO",
+  "rutina": {
+    "id": 45,
+    "nombre": "Monthly Pump Inspection",
+    "descripcion": "Visual inspection and basic maintenance of circulation pumps"
+  },
+  "activos": [
+    {
+      "id": 123,
+      "nombre": "Centrifugal Pump P-101",
+      "codigo": "PUMP-101"
+    }
+  ],
+  "procedimientos": [
+    {
+      "orden": 1,
+      "descripcion": "Check for unusual vibrations",
+      "completado": true,
+      "valor": "Normal operation"
+    },
+    {
+      "orden": 2,
+      "descripcion": "Inspect seal condition",
+      "completado": false,
+      "valor": null
+    }
+  ],
+  "inicio_programado": "2024-03-15T08:00:00Z",
+  "fin_programado": "2024-03-15T10:00:00Z",
+  "inicio_real": "2024-03-15T08:15:00Z",
+  "fin_real": null,
+  "tecnico_asignado": "Juan Perez",
+  "notas": "Routine inspection"
+}
+```
+
+</CodeGroup>
+
+## Update Work Order
+
+### Update Work Order Status and Notes
+
+Update the status and notes of a work order.
+
+```http
+POST /mantenimiento/api/ot/{pk}/update/
+```
+
+<ParamField path="pk" type="integer" required>
+  Work order ID
+</ParamField>
+
+<ParamField body="estado" type="string">
+  New status: PENDIENTE, EN_PROGRESO, COMPLETADA, CANCELADA
+</ParamField>
+
+<ParamField body="notas" type="string">
+  Updated notes
+</ParamField>
+
+<ParamField body="inicio_real" type="string">
+  Actual start datetime (ISO format)
+</ParamField>
+
+<ParamField body="fin_real" type="string">
+  Actual end datetime (ISO format)
+</ParamField>
+
+#### Response
+
+<ResponseField name="status" type="string">
+  "success" or "error"
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Status message
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/mantenimiento/api/ot/1523/update/', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-CSRFToken': csrfToken
+  },
+  credentials: 'same-origin',
+  body: JSON.stringify({
+    estado: 'COMPLETADA',
+    fin_real: new Date().toISOString(),
+    notas: 'Inspection completed. All systems normal.'
+  })
+});
+```
+
+```json Response
+{
+  "status": "success",
+  "message": "Work order updated successfully"
+}
+```
+
+</CodeGroup>
+
+## Schedule Management
+
+### Update Work Order Date
+
+Change the scheduled date of a work order.
+
+```http
+POST /mantenimiento/api/update-ot-date/
+```
+
+<ParamField body="ot_id" type="integer" required>
+  Work order ID
+</ParamField>
+
+<ParamField body="new_date" type="string" required>
+  New scheduled date (YYYY-MM-DD format)
+</ParamField>
+
+<ParamField body="reason" type="string">
+  Reason for date change
+</ParamField>
+
+### Bulk Update Work Order Dates
+
+Update multiple work orders at once.
+
+```http
+POST /mantenimiento/api/bulk-update-ot-dates/
+```
+
+<ParamField body="updates" type="array" required>
+  Array of update objects
+  <Expandable title="Update Object">
+    <ParamField body="ot_id" type="integer" required>
+      Work order ID
+    </ParamField>
+    <ParamField body="new_date" type="string" required>
+      New scheduled date
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Split Work Order by Asset
+
+Split a work order with multiple assets into separate work orders.
+
+```http
+POST /mantenimiento/api/split-ot-asset/
+```
+
+<ParamField body="ot_id" type="integer" required>
+  Work order ID to split
+</ParamField>
+
+### Merge Work Orders
+
+Combine multiple work orders into one.
+
+```http
+POST /mantenimiento/api/merge-ots/
+```
+
+<ParamField body="ot_ids" type="array" required>
+  Array of work order IDs to merge
+</ParamField>
+
+<ParamField body="target_date" type="string">
+  Target date for merged work order
+</ParamField>
+
+### Delete Work Orders
+
+Delete multiple work orders.
+
+```http
+POST /mantenimiento/api/delete-ots/
+```
+
+<ParamField body="ot_ids" type="array" required>
+  Array of work order IDs to delete
+</ParamField>
+
+## Notifications
+
+### Get Maintenance Notifications
+
+Retrieve maintenance notifications for the current user.
+
+```http
+GET /mantenimiento/api/notifications/
+```
+
+<ParamField query="limit" type="integer" default="20">
+  Number of notifications to retrieve
+</ParamField>
+
+<ParamField query="unread_only" type="boolean" default="false">
+  Only return unread notifications
+</ParamField>
+
+#### Response
+
+<ResponseField name="notifications" type="array">
+  Array of notification objects
+  <Expandable title="Notification Object">
+    <ResponseField name="id" type="integer">
+      Notification ID
+    </ResponseField>
+    <ResponseField name="tipo" type="string">
+      Notification type
+    </ResponseField>
+    <ResponseField name="mensaje" type="string">
+      Notification message
+    </ResponseField>
+    <ResponseField name="leido" type="boolean">
+      Read status
+    </ResponseField>
+    <ResponseField name="fecha" type="string">
+      Notification date/time
+    </ResponseField>
+    <ResponseField name="relacionado_id" type="integer">
+      Related object ID (e.g., work order ID)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/mantenimiento/api/notifications/?unread_only=true', {
+  credentials: 'same-origin'
+})
+.then(res => res.json())
+.then(data => console.log(data.notifications));
+```
+
+```json Response
+{
+  "notifications": [
+    {
+      "id": 789,
+      "tipo": "OT_VENCIDA",
+      "mensaje": "Work order OT-2024-1520 is overdue",
+      "leido": false,
+      "fecha": "2024-03-15T10:30:00Z",
+      "relacionado_id": 1520
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+### Mark Notification as Read
+
+Mark a notification as read.
+
+```http
+POST /mantenimiento/api/notifications/read/
+```
+
+<ParamField body="notification_id" type="integer" required>
+  Notification ID to mark as read
+</ParamField>
+
+## Routine Management
+
+### Get Routine Details
+
+Retrieve details about a maintenance routine.
+
+```http
+GET /mantenimiento/rutinas/dashboard/detail/{pk}/
+```
+
+<ParamField path="pk" type="integer" required>
+  Routine ID
+</ParamField>
+
+#### Response
+
+<ResponseField name="id" type="integer">
+  Routine ID
+</ResponseField>
+
+<ResponseField name="nombre" type="string">
+  Routine name
+</ResponseField>
+
+<ResponseField name="descripcion" type="string">
+  Routine description
+</ResponseField>
+
+<ResponseField name="tipo" type="object">
+  Maintenance type/category
+</ResponseField>
+
+<ResponseField name="frecuencia" type="object">
+  Frequency configuration
+</ResponseField>
+
+<ResponseField name="pasos" type="array">
+  Array of procedure steps
+  <Expandable title="Step Object">
+    <ResponseField name="orden" type="integer">
+      Step order
+    </ResponseField>
+    <ResponseField name="descripcion" type="string">
+      Step description
+    </ResponseField>
+    <ResponseField name="tipo_registro" type="string">
+      Record type: TEXTO, NUMERO, CHECKBOX
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Save Routine
+
+Create or update a maintenance routine.
+
+```http
+POST /mantenimiento/rutinas/dashboard/save/
+```
+
+<ParamField body="id" type="integer">
+  Routine ID (omit for new routine)
+</ParamField>
+
+<ParamField body="nombre" type="string" required>
+  Routine name
+</ParamField>
+
+<ParamField body="descripcion" type="string">
+  Routine description
+</ParamField>
+
+<ParamField body="tipo_id" type="integer" required>
+  Maintenance type ID
+</ParamField>
+
+<ParamField body="frecuencia_id" type="integer" required>
+  Frequency ID
+</ParamField>
+
+<ParamField body="duracion_estimada" type="integer">
+  Estimated duration in minutes
+</ParamField>
+
+### Delete Routine
+
+Delete a maintenance routine.
+
+```http
+POST /mantenimiento/rutinas/dashboard/delete/{pk}/
+```
+
+<ParamField path="pk" type="integer" required>
+  Routine ID to delete
+</ParamField>
+
+### Save Routine Steps
+
+Update the procedure steps for a routine.
+
+```http
+POST /mantenimiento/rutinas/dashboard/rutina/pasos/save/
+```
+
+<ParamField body="rutina_id" type="integer" required>
+  Routine ID
+</ParamField>
+
+<ParamField body="pasos" type="array" required>
+  Array of step objects
+  <Expandable title="Step Object">
+    <ParamField body="orden" type="integer" required>
+      Step order
+    </ParamField>
+    <ParamField body="descripcion" type="string" required>
+      Step description
+    </ParamField>
+    <ParamField body="tipo_registro" type="string" default="TEXTO">
+      Record type: TEXTO, NUMERO, CHECKBOX
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Asset Wizard
+
+### Get Assets for Wizard
+
+Retrieve assets filtered by location and category for the routine wizard.
+
+```http
+GET /mantenimiento/api/get-assets-wizard/
+```
+
+<ParamField query="ubicacion_id" type="integer">
+  Filter by location ID
+</ParamField>
+
+<ParamField query="categoria_id" type="integer">
+  Filter by category ID
+</ParamField>
+
+<ParamField query="tipo_id" type="integer">
+  Filter by maintenance type ID
+</ParamField>
+
+## Individual Order Generation
+
+### Generate Individual Work Order
+
+Generate a single work order from a scheduled routine.
+
+```http
+POST /mantenimiento/proyeccion-generar/api/
+```
+
+<ParamField body="programacion_id" type="integer" required>
+  Schedule/program ID
+</ParamField>
+
+<ParamField body="fecha" type="string" required>
+  Date for the work order (YYYY-MM-DD)
+</ParamField>
+
+<ParamField body="activo_ids" type="array">
+  Array of specific asset IDs to include
+</ParamField>
+
+#### Response
+
+<ResponseField name="status" type="string">
+  "success" or "error"
+</ResponseField>
+
+<ResponseField name="ot_id" type="integer">
+  Generated work order ID
+</ResponseField>
+
+<ResponseField name="mensaje" type="string">
+  Status message
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/mantenimiento/proyeccion-generar/api/', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-CSRFToken': csrfToken
+  },
+  credentials: 'same-origin',
+  body: JSON.stringify({
+    programacion_id: 78,
+    fecha: '2024-03-20',
+    activo_ids: [123, 124]
+  })
+});
+```
+
+```json Response
+{
+  "status": "success",
+  "ot_id": 1524,
+  "mensaje": "Work order generated successfully"
+}
+```
+
+</CodeGroup>
+
+## Mobile Endpoints
+
+The API includes mobile-optimized endpoints:
+
+- `GET /mantenimiento/app/cronograma/` - Mobile maintenance schedule view
+- `GET /mantenimiento/app/ot/{pk}/` - Mobile work order detail
+- `POST /mantenimiento/app/ot/{pk}/iniciar/` - Start work order from mobile
+- `POST /mantenimiento/app/ot/{pk}/finalizar/` - Complete work order from mobile
+- `POST /mantenimiento/app/aviso/crear/` - Create maintenance notice from mobile
+- `GET /mantenimiento/app/avisos/` - List user's maintenance notices
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Documents API" icon="file-alt" href="/api/documents">
+    Document management and AI search
+  </Card>
+  <Card title="Inventory API" icon="warehouse" href="/api/inventory">
+    Materials and inventory management
+  </Card>
+</CardGroup>

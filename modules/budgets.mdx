@@ -1,0 +1,176 @@
+---
+title: "Budget & Financial Control"
+description: "Budget management, commitments, and requisition tracking"
+icon: "dollar-sign"
+---
+
+## Overview
+
+The Budget module provides comprehensive financial control for operations, tracking budgets, commitments, executed expenses, and purchase requisitions with real-time availability calculations.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Budget Control" icon="calculator">
+    Track budget allocations and availability
+  </Card>
+  <Card title="Cost Sheet" icon="table">
+    Monitor budget vs actual expenses
+  </Card>
+  <Card title="Requisitions" icon="file-invoice">
+    Manage purchase requests and approvals
+  </Card>
+  <Card title="Dynamics 365 Integration" icon="arrows-spin">
+    Sync with Microsoft ERP system
+  </Card>
+</CardGroup>
+
+## Data Model
+
+### PresupuestoAnual (Annual Budget)
+
+```python presupuestos/models.py
+class PresupuestoAnual(models.Model):
+    anio = models.IntegerField()
+    moneda = models.CharField(max_length=3, default='HNL')
+    activo = models.BooleanField(default=True)
+```
+
+### PartidaPresupuestaria (Budget Line)
+
+```python presupuestos/models.py
+class PartidaPresupuestaria(models.Model):
+    presupuesto = models.ForeignKey('PresupuestoAnual', on_delete=models.CASCADE)
+    disciplina = models.CharField(max_length=100)
+    cuenta = models.CharField(max_length=50)
+    descripcion = models.TextField()
+    
+    # Amounts
+    presupuesto_original = models.DecimalField(max_digits=12, decimal_places=2)
+    presupuesto_vigente = models.DecimalField(max_digits=12, decimal_places=2)
+    comprometido = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    gastado = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    
+    @property
+    def disponible(self):
+        return self.presupuesto_vigente - self.comprometido - self.gastado
+```
+
+### Requisicion (Purchase Requisition)
+
+```python presupuestos/models.py
+class Requisicion(models.Model):
+    ESTADOS = [
+        ('BORRADOR', 'Borrador'),
+        ('PENDIENTE_APROBACION', 'Pendiente Aprobación'),
+        ('APROBADA', 'Aprobada'),
+        ('RECHAZADA', 'Rechazada'),
+        ('EN_COMPRA', 'En Compra'),
+        ('RECIBIDA', 'Recibida'),
+    ]
+    
+    numero = models.CharField(max_length=50, unique=True)
+    fecha = models.DateField()
+    solicitante = models.ForeignKey(User, on_delete=models.SET_NULL)
+    partida = models.ForeignKey('PartidaPresupuestaria', on_delete=models.PROTECT)
+    
+    descripcion = models.TextField()
+    justificacion = models.TextField()
+    
+    estado = models.CharField(max_length=30, choices=ESTADOS)
+    monto_total = models.DecimalField(max_digits=12, decimal_places=2)
+```
+
+## Budget Tracking
+
+### Real-Time Availability
+
+Budget availability is calculated dynamically:
+
+```python presupuestos/views.py
+def calcular_disponibilidad(partida_id):
+    partida = PartidaPresupuestaria.objects.get(id=partida_id)
+    
+    # Sum commitments
+    comprometido = Compromiso.objects.filter(
+        partida=partida,
+        estado='VIGENTE'
+    ).aggregate(Sum('monto'))['monto__sum'] or 0
+    
+    # Sum executed expenses
+    gastado = GastoEjecutado.objects.filter(
+        partida=partida
+    ).aggregate(Sum('monto'))['monto__sum'] or 0
+    
+    disponible = partida.presupuesto_vigente - comprometido - gastado
+    
+    return {
+        'vigente': partida.presupuesto_vigente,
+        'comprometido': comprometido,
+        'gastado': gastado,
+        'disponible': disponible,
+        'porcentaje_ejecutado': (gastado / partida.presupuesto_vigente) * 100
+    }
+```
+
+## Requisition Workflow
+
+<Steps>
+  <Step title="Create Requisition">
+    User creates requisition with items and justification
+  </Step>
+  <Step title="Budget Validation">
+    System validates budget availability
+  </Step>
+  <Step title="Approval Routing">
+    Requisition routed to approvers based on amount
+  </Step>
+  <Step title="Dynamics 365 Sync">
+    Approved requisitions synced to ERP
+  </Step>
+  <Step title="Fulfillment">
+    Purchase order created and tracked
+  </Step>
+</Steps>
+
+## Dynamics 365 Integration
+
+Requisitions sync with Microsoft Dynamics:
+
+```python presupuestos/tasks.py
+@shared_task
+def sync_requisition_to_dynamics(requisicion_id):
+    requisicion = Requisicion.objects.get(id=requisicion_id)
+    
+    # Authenticate with Dynamics
+    token = get_dynamics_token()
+    
+    # Create purchase requisition
+    response = requests.post(
+        f"{settings.DYNAMICS_BASE_URL}/api/data/v9.0/msdyn_purchaserequisitions",
+        headers={'Authorization': f'Bearer {token}'},
+        json={
+            'msdyn_name': requisicion.numero,
+            'msdyn_description': requisicion.descripcion,
+            'msdyn_requesteddate': requisicion.fecha.isoformat(),
+        }
+    )
+    
+    if response.status_code == 201:
+        requisicion.dynamics_id = response.json()['msdyn_purchaserequisitionid']
+        requisicion.save()
+```
+
+## Related Modules
+
+<CardGroup cols={3}>
+  <Card title="Maintenance" icon="wrench" href="/modules/maintenance">
+    Link expenses to work orders
+  </Card>
+  <Card title="Projects" icon="diagram-project" href="/modules/projects">
+    Track project budgets
+  </Card>
+  <Card title="Integration" icon="plug" href="/integration/dynamics-365">
+    ERP integration details
+  </Card>
+</CardGroup>

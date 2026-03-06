@@ -1,0 +1,332 @@
+---
+title: "Project Management"
+description: "Track projects, activities, milestones, and deliverables"
+icon: "diagram-project"
+---
+
+## Overview
+
+The Project Management module handles capital projects (CAPEX), improvement initiatives, and multi-activity work with dependency tracking, Gantt visualization, and AI-powered assistance.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Project Tracking" icon="list-check">
+    Create and monitor projects with activities
+  </Card>
+  <Card title="Dependencies" icon="code-branch">
+    Define predecessor relationships between activities
+  </Card>
+  <Card title="Gantt Chart" icon="chart-gantt">
+    Visual timeline with critical path
+  </Card>
+  <Card title="AI Assistant" icon="robot">
+    Gemini-powered project assistant for Q&A
+  </Card>
+</CardGroup>
+
+## Data Model
+
+### Proyecto (Project)
+
+```python proyectos/models.py
+class Proyecto(models.Model):
+    ESTADOS = [
+        ('PLANEACION', 'Planeación'),
+        ('EN_CURSO', 'En Curso'),
+        ('SUSPENDIDO', 'Suspendido'),
+        ('COMPLETADO', 'Completado'),
+        ('CANCELADO', 'Cancelado'),
+    ]
+    
+    # Auto-generated code: PROY-YYYY-NNNN
+    codigo = models.CharField(max_length=50, unique=True)
+    nombre = models.CharField(max_length=255)
+    descripcion = models.TextField()
+    
+    # Dates
+    fecha_inicio = models.DateField()
+    fecha_fin_planificada = models.DateField()
+    fecha_fin_real = models.DateField(blank=True, null=True)
+    
+    # Management
+    responsable = models.ForeignKey(User, on_delete=models.SET_NULL)
+    estado = models.CharField(max_length=20, choices=ESTADOS)
+    
+    # Budget
+    presupuesto = models.DecimalField(max_digits=12, decimal_places=2)
+    
+    # Progress
+    porcentaje_avance = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+```
+
+### Actividad (Activity)
+
+```python proyectos/models.py
+class Actividad(models.Model):
+    PRIORIDADES = [
+        ('BAJA', 'Baja'),
+        ('MEDIA', 'Media'),
+        ('ALTA', 'Alta'),
+        ('CRITICA', 'Crítica'),
+    ]
+    
+    proyecto = models.ForeignKey('Proyecto', on_delete=models.CASCADE)
+    codigo = models.CharField(max_length=50)
+    nombre = models.CharField(max_length=255)
+    descripcion = models.TextField()
+    
+    # Schedule
+    fecha_inicio = models.DateField()
+    fecha_fin = models.DateField()
+    duracion_dias = models.IntegerField()
+    
+    # Dependencies
+    predecesoras = models.ManyToManyField('self', 
+                                         symmetrical=False,
+                                         related_name='sucesoras',
+                                         blank=True)
+    
+    # Assignment
+    responsable = models.ForeignKey(User, on_delete=models.SET_NULL)
+    ubicacion = models.ForeignKey('activos.Ubicacion', on_delete=models.SET_NULL)
+    
+    # Status
+    estado = models.CharField(max_length=20)
+    porcentaje_completado = models.IntegerField(default=0)
+    prioridad = models.CharField(max_length=10, choices=PRIORIDADES)
+    
+    # Location on floor plan
+    coordenada_x = models.FloatField(blank=True, null=True)
+    coordenada_y = models.FloatField(blank=True, null=True)
+```
+
+### DocumentoProyecto (Project Documents)
+
+```python proyectos/models.py
+class DocumentoProyecto(models.Model):
+    proyecto = models.ForeignKey('Proyecto', on_delete=models.CASCADE)
+    documento = models.ForeignKey('documentos.Documento', on_delete=models.CASCADE)
+    fecha_vinculacion = models.DateField(auto_now_add=True)
+```
+
+## Project Workflow
+
+<Steps>
+  <Step title="Create Project">
+    Define project scope, timeline, and budget
+    
+    ```python
+    proyecto = Proyecto.objects.create(
+        nombre="Cooling Tower Replacement",
+        fecha_inicio=date(2025, 1, 1),
+        fecha_fin_planificada=date(2025, 6, 30),
+        presupuesto=Decimal('500000.00'),
+        responsable=project_manager
+    )
+    ```
+  </Step>
+  
+  <Step title="Define Activities">
+    Break down project into activities with dependencies
+    
+    ```python
+    # Activity 1: Site preparation
+    prep = Actividad.objects.create(
+        proyecto=proyecto,
+        nombre="Site Preparation",
+        fecha_inicio=date(2025, 1, 1),
+        duracion_dias=10
+    )
+    
+    # Activity 2: Equipment delivery (depends on prep)
+    delivery = Actividad.objects.create(
+        proyecto=proyecto,
+        nombre="Equipment Delivery",
+        fecha_inicio=date(2025, 1, 11),
+        duracion_dias=5
+    )
+    delivery.predecesoras.add(prep)
+    
+    # Activity 3: Installation (depends on delivery)
+    install = Actividad.objects.create(
+        proyecto=proyecto,
+        nombre="Installation",
+        fecha_inicio=date(2025, 1, 16),
+        duracion_dias=20
+    )
+    install.predecesoras.add(delivery)
+    ```
+  </Step>
+  
+  <Step title="Track Progress">
+    Update activity completion percentages
+    
+    ```python
+    actividad.porcentaje_completado = 75
+    actividad.save()
+    
+    # Recalculate project progress
+    proyecto.calcular_avance()
+    ```
+  </Step>
+  
+  <Step title="Generate Reports">
+    Export Gantt chart and progress reports
+  </Step>
+</Steps>
+
+## Gantt Chart Visualization
+
+### Timeline View
+
+Visual representation of project schedule:
+
+```python proyectos/views.py
+def gantt_view(request, proyecto_id):
+    proyecto = Proyecto.objects.get(id=proyecto_id)
+    actividades = proyecto.actividad_set.all()
+    
+    # Prepare data for Gantt chart
+    gantt_data = []
+    for actividad in actividades:
+        gantt_data.append({
+            'id': actividad.id,
+            'text': actividad.nombre,
+            'start_date': actividad.fecha_inicio.isoformat(),
+            'duration': actividad.duracion_dias,
+            'progress': actividad.porcentaje_completado / 100,
+            'parent': actividad.proyecto.id,
+            'dependencies': [p.id for p in actividad.predecesoras.all()]
+        })
+    
+    return render(request, 'gantt.html', {
+        'proyecto': proyecto,
+        'gantt_data': json.dumps(gantt_data)
+    })
+```
+
+### Critical Path Analysis
+
+Identify critical activities:
+
+```python proyectos/services.py
+def calcular_ruta_critica(proyecto):
+    """Calculate critical path using forward/backward pass"""
+    actividades = list(proyecto.actividad_set.all())
+    
+    # Forward pass: Calculate earliest start/finish
+    for actividad in actividades:
+        if not actividad.predecesoras.exists():
+            actividad.early_start = proyecto.fecha_inicio
+        else:
+            max_finish = max([p.early_finish for p in actividad.predecesoras.all()])
+            actividad.early_start = max_finish
+        
+        actividad.early_finish = actividad.early_start + timedelta(days=actividad.duracion_dias)
+    
+    # Backward pass: Calculate latest start/finish
+    for actividad in reversed(actividades):
+        if not actividad.sucesoras.exists():
+            actividad.late_finish = proyecto.fecha_fin_planificada
+        else:
+            min_start = min([s.late_start for s in actividad.sucesoras.all()])
+            actividad.late_finish = min_start
+        
+        actividad.late_start = actividad.late_finish - timedelta(days=actividad.duracion_dias)
+    
+    # Identify critical activities (slack = 0)
+    critical_activities = [
+        a for a in actividades 
+        if (a.late_start - a.early_start).days == 0
+    ]
+    
+    return critical_activities
+```
+
+## AI Assistant Integration
+
+### Gemini-Powered Q&A
+
+Ask questions about project status:
+
+```python proyectos/views.py
+def ai_chat(request, proyecto_id):
+    proyecto = Proyecto.objects.get(id=proyecto_id)
+    question = request.POST.get('question')
+    
+    # Build context from project data
+    context = f"""
+    Project: {proyecto.nombre}
+    Status: {proyecto.estado}
+    Progress: {proyecto.porcentaje_avance}%
+    Activities: {proyecto.actividad_set.count()}
+    Budget: ${proyecto.presupuesto}
+    """
+    
+    # Query Gemini API
+    import google.generativeai as genai
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    
+    model = genai.GenerativeModel('gemini-pro')
+    response = model.generate_content(
+        f"Context: {context}\n\nQuestion: {question}"
+    )
+    
+    return JsonResponse({'answer': response.text})
+```
+
+## Document Linking
+
+Associate technical documents with projects:
+
+```python proyectos/views.py
+def vincular_documento(request, proyecto_id):
+    proyecto = Proyecto.objects.get(id=proyecto_id)
+    documento_id = request.POST.get('documento_id')
+    
+    DocumentoProyecto.objects.create(
+        proyecto=proyecto,
+        documento_id=documento_id
+    )
+    
+    return JsonResponse({'status': 'ok'})
+```
+
+## API Endpoints
+
+<Card title="Activity Management" icon="tasks" href="/api/projects">
+CRUD operations for projects and activities
+</Card>
+
+<Card title="Progress Updates" icon="chart-line" href="/api/projects">
+Update activity completion and recalculate project progress
+</Card>
+
+## Best Practices
+
+<Tip>
+**Activity Granularity**: Break down activities to 1-2 week durations for better tracking
+</Tip>
+
+<Warning>
+**Circular Dependencies**: The system prevents circular predecessor relationships
+</Warning>
+
+<Note>
+**Regular Updates**: Update activity progress weekly for accurate reporting
+</Note>
+
+## Related Modules
+
+<CardGroup cols={3}>
+  <Card title="Documents" icon="file" href="/modules/documents">
+    Link project documentation
+  </Card>
+  <Card title="Budgets" icon="dollar-sign" href="/modules/budgets">
+    Track project costs
+  </Card>
+  <Card title="Assets" icon="building" href="/modules/assets">
+    Associate with locations
+  </Card>
+</CardGroup>

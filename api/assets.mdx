@@ -1,0 +1,655 @@
+---
+title: Assets API
+description: Manage assets, locations, categories, and equipment hierarchies
+icon: 'building'
+---
+
+## Overview
+
+The Assets API provides endpoints for managing physical assets, locations, categories, and equipment hierarchies. All endpoints require authentication.
+
+**Base Path:** `/activos/`
+
+## Asset Search
+
+### Search Assets
+
+Search for assets by name, code, serial number, or description.
+
+```http
+GET /activos/api/buscar-activos-json/
+```
+
+<ParamField query="q" type="string">
+  Search query to match against asset name, internal code, description, or serial number
+</ParamField>
+
+<ParamField query="cat_id" type="integer">
+  Filter by category ID
+</ParamField>
+
+<ParamField query="loc_id" type="integer">
+  Filter by location ID
+</ParamField>
+
+#### Response
+
+<ResponseField name="results" type="array">
+  Array of matching assets (limited to 50 results)
+  <Expandable title="Asset Object">
+    <ResponseField name="id" type="integer">
+      Asset ID
+    </ResponseField>
+    <ResponseField name="nombre" type="string">
+      Asset name
+    </ResponseField>
+    <ResponseField name="codigo" type="string">
+      Internal code
+    </ResponseField>
+    <ResponseField name="categoria_id" type="integer">
+      Category ID
+    </ResponseField>
+    <ResponseField name="ubicacion_id" type="integer">
+      Location ID
+    </ResponseField>
+    <ResponseField name="data_nombre" type="string">
+      Lowercase name for client-side filtering
+    </ResponseField>
+    <ResponseField name="data_codigo" type="string">
+      Lowercase code for client-side filtering
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/activos/api/buscar-activos-json/?q=pump&cat_id=5', {
+  credentials: 'same-origin'
+})
+.then(res => res.json())
+.then(data => console.log(data.results));
+```
+
+```json Response
+{
+  "results": [
+    {
+      "id": 123,
+      "nombre": "Centrifugal Pump P-101",
+      "codigo": "PUMP-101",
+      "categoria_id": 5,
+      "ubicacion_id": 12,
+      "data_nombre": "centrifugal pump p-101",
+      "data_codigo": "pump-101"
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+## Model Search
+
+### Search Models
+
+Search for asset models and manufacturers.
+
+```http
+GET /activos/api/buscar-modelos-json/
+```
+
+<ParamField query="q" type="string" required>
+  Search query to match against model name or manufacturer name
+</ParamField>
+
+#### Response
+
+<ResponseField name="results" type="array">
+  Array of matching models (limited to 50 results)
+  <Expandable title="Model Object">
+    <ResponseField name="id" type="integer">
+      Model ID
+    </ResponseField>
+    <ResponseField name="text" type="string">
+      Display text (manufacturer + model name)
+    </ResponseField>
+    <ResponseField name="categoria" type="string">
+      Category name
+    </ResponseField>
+    <ResponseField name="unidad" type="string">
+      Unit of measure
+    </ResponseField>
+    <ResponseField name="icono" type="string">
+      Category icon name
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/activos/api/buscar-modelos-json/?q=ABB+motor', {
+  credentials: 'same-origin'
+})
+.then(res => res.json())
+.then(data => console.log(data.results));
+```
+
+```json Response
+{
+  "results": [
+    {
+      "id": 45,
+      "text": "ABB M2QA 180M",
+      "categoria": "Electric Motors",
+      "unidad": "Unit",
+      "icono": "flash"
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+## Pin Management
+
+### Save Asset Pin
+
+Create or update a pin on a floor plan viewer.
+
+```http
+POST /activos/api/guardar-pin/
+```
+
+<ParamField body="id" type="integer">
+  Pin ID (null or omit for new pin)
+</ParamField>
+
+<ParamField body="visor_id" type="integer" required>
+  Floor plan viewer ID
+</ParamField>
+
+<ParamField body="activo_id" type="integer">
+  Asset ID to pin
+</ParamField>
+
+<ParamField body="aviso_id" type="integer">
+  Maintenance notice ID to pin
+</ParamField>
+
+<ParamField body="actividad_id" type="integer">
+  Project activity ID to pin
+</ParamField>
+
+<ParamField body="ubicacion_id" type="integer">
+  Location/zone ID to pin
+</ParamField>
+
+<ParamField body="x" type="float" required>
+  X coordinate on the floor plan
+</ParamField>
+
+<ParamField body="y" type="float" required>
+  Y coordinate on the floor plan
+</ParamField>
+
+<ParamField body="color" type="string" default="#FF0000">
+  Pin color (hex format)
+</ParamField>
+
+<ParamField body="nota" type="string">
+  Optional note for the pin
+</ParamField>
+
+<ParamField body="ancho" type="float">
+  Width for area pins
+</ParamField>
+
+<ParamField body="alto" type="float">
+  Height for area pins
+</ParamField>
+
+#### Response
+
+<ResponseField name="status" type="string">
+  "success" or "error"
+</ResponseField>
+
+<ResponseField name="pin_id" type="integer">
+  ID of created/updated pin
+</ResponseField>
+
+<ResponseField name="activo_id" type="integer">
+  Linked asset ID
+</ResponseField>
+
+<ResponseField name="nombre_activo" type="string">
+  Asset or item name
+</ResponseField>
+
+<ResponseField name="icono" type="string">
+  Icon identifier for the pin
+</ResponseField>
+
+<ResponseField name="fotos" type="array">
+  Array of photo URLs
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/activos/api/guardar-pin/', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-CSRFToken': csrfToken
+  },
+  credentials: 'same-origin',
+  body: JSON.stringify({
+    visor_id: 1,
+    activo_id: 123,
+    x: 150.5,
+    y: 200.3,
+    color: '#2563eb',
+    nota: 'Main circulation pump'
+  })
+});
+```
+
+```json Response
+{
+  "status": "success",
+  "pin_id": 456,
+  "activo_id": 123,
+  "nombre_activo": "Centrifugal Pump P-101",
+  "codigo_externo": "PUMP-101",
+  "nota": "Main circulation pump",
+  "icono": "water",
+  "fotos": [
+    "https://softcom.ccg.hn/media-proxy/activos/pump_123.jpg"
+  ],
+  "aviso_meta": {}
+}
+```
+
+</CodeGroup>
+
+### Delete Pin
+
+Remove a pin from a floor plan.
+
+```http
+POST /activos/api/eliminar-pin/{pin_id}/
+```
+
+<ParamField path="pin_id" type="integer" required>
+  ID of the pin to delete
+</ParamField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/activos/api/eliminar-pin/456/', {
+  method: 'POST',
+  headers: {
+    'X-CSRFToken': csrfToken
+  },
+  credentials: 'same-origin'
+});
+```
+
+```json Response
+{
+  "status": "success"
+}
+```
+
+</CodeGroup>
+
+## Location Hierarchy
+
+### Get Root Locations
+
+Retrieve top-level locations.
+
+```http
+GET /activos/api/ubicaciones-root/
+```
+
+#### Response
+
+<ResponseField name="results" type="array">
+  Array of root location objects
+  <Expandable title="Location Object">
+    <ResponseField name="id" type="integer">
+      Location ID
+    </ResponseField>
+    <ResponseField name="nombre" type="string">
+      Location name
+    </ResponseField>
+    <ResponseField name="tipo" type="string">
+      Location type (PLANTA, EDIFICIO, PISO, AREA, ZONA)
+    </ResponseField>
+    <ResponseField name="has_children" type="boolean">
+      Whether location has sub-locations
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Get Child Locations
+
+Retrieve child locations for a parent.
+
+```http
+GET /activos/api/ubicaciones-children/{parent_id}/
+```
+
+<ParamField path="parent_id" type="integer" required>
+  Parent location ID
+</ParamField>
+
+## Location Details
+
+### Get Location Details
+
+Retrieve detailed information about a location including all assets.
+
+```http
+GET /activos/api/ubicacion-detalle/{ubicacion_id}/
+```
+
+<ParamField path="ubicacion_id" type="integer" required>
+  Location ID
+</ParamField>
+
+#### Response
+
+<ResponseField name="ubicacion" type="object">
+  <Expandable title="Location Details">
+    <ResponseField name="id" type="integer">
+      Location ID
+    </ResponseField>
+    <ResponseField name="nombre" type="string">
+      Location name
+    </ResponseField>
+    <ResponseField name="tipo" type="string">
+      Location type display name
+    </ResponseField>
+    <ResponseField name="ruta" type="string">
+      Full hierarchical path
+    </ResponseField>
+    <ResponseField name="descripcion" type="string">
+      Location description
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="total_activos" type="integer">
+  Total number of assets in location and descendants
+</ResponseField>
+
+<ResponseField name="activos_operativos" type="integer">
+  Number of operational assets
+</ResponseField>
+
+<ResponseField name="categorias" type="array">
+  Array of asset categories with grouped assets
+  <Expandable title="Category Group">
+    <ResponseField name="nombre" type="string">
+      Category name
+    </ResponseField>
+    <ResponseField name="icono" type="string">
+      Category icon
+    </ResponseField>
+    <ResponseField name="total_items" type="integer">
+      Number of assets in category
+    </ResponseField>
+    <ResponseField name="subcategorias" type="array">
+      Array of subcategories with assets
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+fetch('/activos/api/ubicacion-detalle/12/', {
+  credentials: 'same-origin'
+})
+.then(res => res.json())
+.then(data => console.log(data));
+```
+
+```json Response
+{
+  "ubicacion": {
+    "id": 12,
+    "nombre": "Pump Room A",
+    "tipo": "Area",
+    "ruta": "Plant 1 > Building 2 > Floor 1 > Pump Room A",
+    "descripcion": "Main circulation pumps area"
+  },
+  "total_activos": 15,
+  "activos_operativos": 14,
+  "categorias": [
+    {
+      "nombre": "Pumps",
+      "icono": "water",
+      "total_items": 8,
+      "subcategorias": [
+        {
+          "nombre": "Centrifugal Pumps",
+          "is_general": false,
+          "activos": [
+            {
+              "id": 123,
+              "nombre": "Centrifugal Pump P-101",
+              "codigo": "PUMP-101",
+              "serie": "ABC123456",
+              "modelo": "Goulds 3196",
+              "estado": "OPERATIVO",
+              "estado_display": "Operational",
+              "ubicacion_nombre": "Pump Room A",
+              "is_child": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+## Asset Details
+
+### Get Asset Details
+
+Retrieve detailed information about a specific asset.
+
+```http
+GET /activos/api/activo-detalle/{activo_id}/
+```
+
+<ParamField path="activo_id" type="integer" required>
+  Asset ID
+</ParamField>
+
+#### Response
+
+<ResponseField name="id" type="integer">
+  Asset ID
+</ResponseField>
+
+<ResponseField name="nombre" type="string">
+  Asset name
+</ResponseField>
+
+<ResponseField name="codigo_interno" type="string">
+  Internal asset code
+</ResponseField>
+
+<ResponseField name="serie" type="string">
+  Serial number
+</ResponseField>
+
+<ResponseField name="estado" type="string">
+  Asset state code
+</ResponseField>
+
+<ResponseField name="estado_display" type="string">
+  Human-readable state
+</ResponseField>
+
+<ResponseField name="marca" type="string">
+  Manufacturer name
+</ResponseField>
+
+<ResponseField name="modelo" type="string">
+  Model name
+</ResponseField>
+
+<ResponseField name="categoria" type="string">
+  Category name
+</ResponseField>
+
+<ResponseField name="ubicacion" type="string">
+  Full location path
+</ResponseField>
+
+<ResponseField name="responsable" type="string">
+  Responsible person's name
+</ResponseField>
+
+<ResponseField name="fecha_compra" type="string">
+  Purchase date (DD/MM/YYYY format)
+</ResponseField>
+
+<ResponseField name="costo" type="string">
+  Asset cost
+</ResponseField>
+
+<ResponseField name="descripcion" type="string">
+  Asset description
+</ResponseField>
+
+<ResponseField name="foto_url" type="string">
+  Photo URL
+</ResponseField>
+
+## Import Progress
+
+### Get Import Progress
+
+Check the progress of an asset import task.
+
+```http
+GET /activos/api/import-progress/{task_id}/
+```
+
+<ParamField path="task_id" type="string" required>
+  Celery task ID
+</ParamField>
+
+#### Response
+
+<ResponseField name="state" type="string">
+  Task state (PENDING, PROGRESS, SUCCESS, FAILURE)
+</ResponseField>
+
+<ResponseField name="current" type="integer">
+  Current progress value
+</ResponseField>
+
+<ResponseField name="total" type="integer">
+  Total items to process
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Status message
+</ResponseField>
+
+<ResponseField name="percent" type="integer">
+  Percentage complete (0-100)
+</ResponseField>
+
+<CodeGroup>
+
+```javascript Request
+const taskId = 'abc123-def456-ghi789';
+
+setInterval(() => {
+  fetch(`/activos/api/import-progress/${taskId}/`)
+    .then(res => res.json())
+    .then(data => {
+      console.log(`Progress: ${data.percent}%`);
+      if (data.state === 'SUCCESS') {
+        console.log('Import complete!');
+      }
+    });
+}, 2000);
+```
+
+```json Response
+{
+  "state": "PROGRESS",
+  "current": 450,
+  "total": 1000,
+  "status": "Processing row 450...",
+  "current_row": "Pump P-450",
+  "percent": 45
+}
+```
+
+</CodeGroup>
+
+## Explorer API
+
+### Search Explorer
+
+Global search across assets, locations, and categories.
+
+```http
+GET /activos/api/explorer-search/?q=search_term
+```
+
+<ParamField query="q" type="string" required>
+  Search term (minimum 2 characters)
+</ParamField>
+
+#### Response
+
+Returns HTML fragments with search results grouped by type (Categories, Locations, Assets).
+
+### Get Explorer Level
+
+Load children for a specific node in the hierarchy explorer.
+
+```http
+GET /activos/api/explorer-level/
+```
+
+<ParamField query="id" type="integer" required>
+  Parent node ID
+</ParamField>
+
+<ParamField query="type" type="string" required>
+  Node type: "ubicacion", "activo", or "categoria"
+</ParamField>
+
+<ParamField query="cat_id" type="integer">
+  Category filter context
+</ParamField>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Maintenance API" icon="tools" href="/api/maintenance">
+    Work orders and maintenance operations
+  </Card>
+  <Card title="Documents API" icon="file-alt" href="/api/documents">
+    Document management and search
+  </Card>
+</CardGroup>

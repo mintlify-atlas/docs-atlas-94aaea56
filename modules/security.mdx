@@ -1,0 +1,341 @@
+---
+title: "Safety & Security Module"
+description: "Work permits, risk assessments, and safety compliance management"
+icon: "shield-halved"
+---
+
+## Overview
+
+The Safety module manages work permits, risk assessments, safety inspections, incidents, and PPE (Personal Protective Equipment) tracking to ensure regulatory compliance and workplace safety.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Work Permits" icon="file-signature">
+    Hot work, confined space, heights, and LOTO permits
+  </Card>
+  <Card title="Risk Analysis (JSA/AST)" icon="triangle-exclamation">
+    Job Safety Analysis and risk assessments
+  </Card>
+  <Card title="Safety Inspections" icon="clipboard-check">
+    Scheduled safety audits and checklists
+  </Card>
+  <Card title="Incident Management" icon="siren-on">
+    Report and investigate safety incidents
+  </Card>
+  <Card title="PPE Tracking" icon="hard-hat">
+    Assign and track protective equipment
+  </Card>
+  <Card title="Compliance" icon="gavel">
+    OSHA and regulatory compliance tracking
+  </Card>
+</CardGroup>
+
+## Data Model
+
+### PermisoTrabajo (Work Permit)
+
+```python seguridad/models.py
+class PermisoTrabajo(models.Model):
+    ESTADOS = [
+        ('BORRADOR', 'Draft'),
+        ('PENDIENTE', 'Pending Approval'),
+        ('APROBADO', 'Approved'),
+        ('EN_EJECUCION', 'In Progress'),
+        ('CERRADO', 'Closed'),
+        ('CANCELADO', 'Cancelled'),
+    ]
+    
+    numero = models.CharField(max_length=50, unique=True)
+    tipo_permiso = models.ForeignKey('TipoPermiso', on_delete=models.PROTECT)
+    
+    # Work details
+    descripcion_trabajo = models.TextField()
+    ubicacion = models.ForeignKey('activos.Ubicacion', on_delete=models.PROTECT)
+    activo = models.ForeignKey('activos.Activo', on_delete=models.SET_NULL)
+    
+    # Timing
+    fecha_inicio = models.DateTimeField()
+    fecha_fin = models.DateTimeField()
+    
+    # Personnel
+    solicitante = models.ForeignKey(User, on_delete=models.SET_NULL)
+    supervisor = models.ForeignKey(User, on_delete=models.SET_NULL)
+    
+    # Status
+    estado = models.CharField(max_length=20, choices=ESTADOS)
+    
+    # Link to JSA
+    analisis_riesgo = models.ForeignKey('AnalisisRiesgo', on_delete=models.SET_NULL)
+```
+
+### TipoPermiso (Permit Type)
+
+```python seguridad/models.py
+class TipoPermiso(models.Model):
+    nombre = models.CharField(max_length=100)
+    descripcion = models.TextField()
+    color = ColorField(default='#FF0000')
+    requiere_aprobacion_supervisor = models.BooleanField(default=True)
+    requiere_aprobacion_seguridad = models.BooleanField(default=True)
+```
+
+**Common permit types:**
+- Hot Work (welding, cutting, grinding)
+- Confined Space Entry
+- Work at Heights
+- Lockout/Tagout (LOTO)
+- Excavation
+- Electrical Work
+
+### AnalisisRiesgo (Risk Analysis / JSA)
+
+```python seguridad/models.py
+class AnalisisRiesgo(models.Model):
+    nombre = models.CharField(max_length=200)
+    descripcion = models.TextField()
+    fecha = models.DateField(auto_now_add=True)
+    responsable = models.ForeignKey(User, on_delete=models.SET_NULL)
+    
+class PasoTrabajo(models.Model):
+    analisis = models.ForeignKey('AnalisisRiesgo', on_delete=models.CASCADE)
+    numero = models.IntegerField()
+    descripcion = models.TextField()
+    
+class Riesgo(models.Model):
+    SEVERIDAD_CHOICES = [
+        ('BAJA', 'Baja'),
+        ('MEDIA', 'Media'),
+        ('ALTA', 'Alta'),
+        ('CRITICA', 'Crítica'),
+    ]
+    
+    paso_trabajo = models.ForeignKey('PasoTrabajo', on_delete=models.CASCADE)
+    descripcion = models.TextField()
+    severidad = models.CharField(max_length=10, choices=SEVERIDAD_CHOICES)
+    probabilidad = models.IntegerField()  # 1-5
+    
+class Control(models.Model):
+    riesgo = models.ForeignKey('Riesgo', on_delete=models.CASCADE)
+    descripcion = models.TextField()
+    tipo = models.CharField(max_length=50)  # Engineering, Administrative, PPE
+```
+
+## Work Permit Workflow
+
+<Steps>
+  <Step title="Request Permit">
+    Worker creates permit request with work details
+    
+    ```python
+    permiso = PermisoTrabajo.objects.create(
+        tipo_permiso=tipo,
+        descripcion_trabajo="Welding on cooling tower",
+        ubicacion=ubicacion,
+        fecha_inicio=start_time,
+        estado='BORRADOR'
+    )
+    ```
+  </Step>
+  
+  <Step title="Complete JSA">
+    Identify hazards and control measures
+    
+    ```python
+    jsa = AnalisisRiesgo.objects.create(
+        nombre="Welding JSA",
+        responsable=request.user
+    )
+    permiso.analisis_riesgo = jsa
+    permiso.save()
+    ```
+  </Step>
+  
+  <Step title="Verify Requirements">
+    Check all permit requirements are met
+    
+    ```python
+    for req in permiso.tipo_permiso.requisitos.all():
+        VerificacionRequisito.objects.create(
+            permiso=permiso,
+            requisito=req,
+            verificado=True,
+            verificado_por=supervisor
+        )
+    ```
+  </Step>
+  
+  <Step title="Approval">
+    Supervisor and safety officer approve
+    
+    ```python
+    permiso.estado = 'APROBADO'
+    permiso.save()
+    ```
+  </Step>
+  
+  <Step title="Execute Work">
+    Work proceeds under permit conditions
+    
+    ```python
+    permiso.estado = 'EN_EJECUCION'
+    permiso.save()
+    ```
+  </Step>
+  
+  <Step title="Close Permit">
+    Complete work and close permit
+    
+    ```python
+    permiso.estado = 'CERRADO'
+    permiso.fecha_cierre = timezone.now()
+    permiso.save()
+    ```
+  </Step>
+</Steps>
+
+## Incident Management
+
+### Incidente (Incident)
+
+```python seguridad/models.py
+class Incidente(models.Model):
+    TIPOS = [
+        ('ACCIDENTE', 'Accident'),
+        ('CASI_ACCIDENTE', 'Near Miss'),
+        ('CONDICION_INSEGURA', 'Unsafe Condition'),
+    ]
+    
+    numero = models.CharField(max_length=50, unique=True)
+    tipo = models.ForeignKey('TipoIncidente', on_delete=models.PROTECT)
+    fecha = models.DateTimeField()
+    
+    # Location
+    ubicacion = models.ForeignKey('activos.Ubicacion', on_delete=models.PROTECT)
+    activo = models.ForeignKey('activos.Activo', on_delete=models.SET_NULL)
+    
+    # Description
+    descripcion = models.TextField()
+    causa_raiz = models.TextField(blank=True)
+    acciones_correctivas = models.TextField(blank=True)
+    
+    # Personnel
+    reportado_por = models.ForeignKey(User, on_delete=models.SET_NULL)
+    personas_involucradas = models.ManyToManyField(User)
+    
+    # Severity
+    severidad = models.CharField(max_length=20)
+    dias_perdidos = models.IntegerField(default=0)
+```
+
+### Incident Investigation
+
+Root cause analysis and corrective actions:
+
+```python seguridad/views.py
+def investigar_incidente(request, incidente_id):
+    incidente = Incidente.objects.get(id=incidente_id)
+    
+    if request.method == 'POST':
+        # Record investigation findings
+        incidente.causa_raiz = request.POST.get('causa_raiz')
+        incidente.acciones_correctivas = request.POST.get('acciones')
+        incidente.estado = 'INVESTIGADO'
+        incidente.save()
+        
+        # Create follow-up tasks
+        for accion in request.POST.getlist('acciones[]'):
+            # Create maintenance order or action item
+            pass
+    
+    return render(request, 'investigacion.html', {'incidente': incidente})
+```
+
+## Safety Inspections
+
+### Inspeccion (Inspection)
+
+```python seguridad/models.py
+class Inspeccion(models.Model):
+    tipo = models.ForeignKey('TipoInspeccion', on_delete=models.PROTECT)
+    fecha = models.DateField()
+    ubicacion = models.ForeignKey('activos.Ubicacion', on_delete=models.PROTECT)
+    inspector = models.ForeignKey(User, on_delete=models.SET_NULL)
+    
+class ResultadoInspeccion(models.Model):
+    inspeccion = models.ForeignKey('Inspeccion', on_delete=models.CASCADE)
+    item = models.ForeignKey('ItemInspeccion', on_delete=models.PROTECT)
+    
+    conforme = models.BooleanField()
+    observaciones = models.TextField(blank=True)
+    foto = models.ImageField(upload_to='inspecciones/', blank=True)
+```
+
+## PPE Management
+
+### AsignacionEPP (PPE Assignment)
+
+```python seguridad/models.py
+class AsignacionEPP(models.Model):
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE)
+    tipo_epp = models.CharField(max_length=100)
+    
+    fecha_asignacion = models.DateField(auto_now_add=True)
+    fecha_vencimiento = models.DateField()
+    
+    numero_serie = models.CharField(max_length=50)
+    estado = models.CharField(max_length=20)  # Activo, Vencido, Retirado
+```
+
+## Compliance Reporting
+
+### OSHA Recordkeeping
+
+Track recordable incidents:
+
+```python seguridad/views.py
+def reporte_osha(request, year):
+    """Generate OSHA 300 log"""
+    incidentes_registrables = Incidente.objects.filter(
+        fecha__year=year,
+        tipo__registrable_osha=True
+    ).order_by('fecha')
+    
+    # Calculate injury rates
+    total_horas = calcular_horas_trabajadas(year)
+    tasa_incidentes = (len(incidentes_registrables) * 200000) / total_horas
+    
+    return render(request, 'osha_300.html', {
+        'incidentes': incidentes_registrables,
+        'tasa_incidentes': tasa_incidentes,
+        'year': year
+    })
+```
+
+## Best Practices
+
+<Tip>
+**Permit Duration**: Set realistic time windows for permits to avoid expired permits during work
+</Tip>
+
+<Warning>
+**Critical Requirements**: Mark life-critical requirements (e.g., gas testing for confined spaces) as mandatory
+</Warning>
+
+<Note>
+**Near Miss Reporting**: Encourage near miss reporting to prevent future incidents
+</Note>
+
+## Related Modules
+
+<CardGroup cols={3}>
+  <Card title="Maintenance" icon="wrench" href="/modules/maintenance">
+    Link permits to work orders
+  </Card>
+  <Card title="Assets" icon="building" href="/modules/assets">
+    Equipment-specific hazards
+  </Card>
+  <Card title="User Guide" icon="book" href="/guides/work-permits">
+    Detailed permit workflows
+  </Card>
+</CardGroup>

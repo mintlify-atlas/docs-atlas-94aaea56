@@ -1,0 +1,257 @@
+---
+title: "Call Center & Ticketing"
+description: "Ticket management with external system integration"
+icon: "headset"
+---
+
+## Overview
+
+The Call Center module manages support tickets and service requests with integration to external ticketing systems (SIG - Sistema de Información Gerencial).
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Ticket Management" icon="ticket">
+    Create and track service requests
+  </Card>
+  <Card title="External Integration" icon="arrows-rotate">
+    Sync with SIG ticketing system
+  </Card>
+  <Card title="Asset Linking" icon="link">
+    Associate tickets with equipment
+  </Card>
+  <Card title="Evidence Tracking" icon="camera">
+    Attach photos and documents
+  </Card>
+</CardGroup>
+
+## Data Model
+
+### SolicitudTicket (Service Ticket)
+
+```python callcenter/models.py
+class SolicitudTicket(models.Model):
+    ESTADOS = [
+        ('ABIERTO', 'Open'),
+        ('EN_PROCESO', 'In Progress'),
+        ('RESUELTO', 'Resolved'),
+        ('CERRADO', 'Closed'),
+        ('CANCELADO', 'Cancelled'),
+    ]
+    
+    # Identification
+    numero_ticket = models.CharField(max_length=50, unique=True)
+    numero_ticket_externo = models.CharField(max_length=50, blank=True)
+    
+    # Content
+    asunto = models.CharField(max_length=255)
+    descripcion = models.TextField()
+    
+    # Classification
+    area = models.CharField(max_length=100)
+    prioridad = models.CharField(max_length=20)
+    categoria = models.CharField(max_length=100)
+    
+    # Location
+    ubicacion = models.ForeignKey('activos.Ubicacion', on_delete=models.SET_NULL)
+    activo = models.ForeignKey('activos.Activo', on_delete=models.SET_NULL)
+    
+    # Personnel
+    solicitante = models.CharField(max_length=100)
+    asignado_a = models.ForeignKey(User, on_delete=models.SET_NULL)
+    
+    # Status
+    estado = models.CharField(max_length=20, choices=ESTADOS)
+    fecha_creacion = models.DateTimeField()
+    fecha_cierre = models.DateTimeField(blank=True, null=True)
+    
+    # Tracking
+    activo = models.BooleanField(default=True)
+    ultima_sincronizacion = models.DateTimeField(blank=True, null=True)
+```
+
+### GrupoTicket (Ticket Group)
+
+```python callcenter/models.py
+class GrupoTicket(models.Model):
+    nombre = models.CharField(max_length=100)
+    descripcion = models.TextField(blank=True)
+    responsables = models.ManyToManyField(User)
+```
+
+### EvidenciaTicket (Ticket Evidence)
+
+```python callcenter/models.py
+class EvidenciaTicket(models.Model):
+    ticket = models.ForeignKey('SolicitudTicket', on_delete=models.CASCADE)
+    archivo = models.FileField(upload_to='tickets/evidencias/')
+    descripcion = models.CharField(max_length=255, blank=True)
+    subido_por = models.ForeignKey(User, on_delete=models.SET_NULL)
+    fecha_subida = models.DateTimeField(auto_now_add=True)
+```
+
+## External System Integration
+
+### SIG Synchronization
+
+Pull tickets from external SIG system:
+
+```python callcenter/tasks.py
+@shared_task
+def sync_tickets_from_sig():
+    """Synchronize tickets from external SIG system"""
+    from callcenter.scraper import SIGScraper
+    
+    scraper = SIGScraper(
+        base_url=settings.SIG_BASE_URL,
+        username=settings.SIG_USERNAME,
+        password=settings.SIG_PASSWORD
+    )
+    
+    # Login and get tickets
+    scraper.login()
+    tickets = scraper.get_tickets()
+    
+    for ticket_data in tickets:
+        # Create or update ticket
+        ticket, created = SolicitudTicket.objects.update_or_create(
+            numero_ticket_externo=ticket_data['numero'],
+            defaults={
+                'asunto': ticket_data['asunto'],
+                'descripcion': ticket_data['descripcion'],
+                'estado': ticket_data['estado'],
+                'prioridad': ticket_data['prioridad'],
+                'ultima_sincronizacion': timezone.now()
+            }
+        )
+        
+        if created:
+            logger.info(f'Created ticket {ticket.numero_ticket}')
+```
+
+### Web Scraper
+
+Extract tickets from SIG web interface:
+
+```python callcenter/scraper.py
+class SIGScraper:
+    def __init__(self, base_url, username, password):
+        self.base_url = base_url
+        self.username = username
+        self.password = password
+        self.session = requests.Session()
+    
+    def login(self):
+        """Authenticate with SIG system"""
+        response = self.session.post(
+            f"{self.base_url}/login",
+            data={
+                'usuario': self.username,
+                'contrasena': self.password
+            }
+        )
+        return response.status_code == 200
+    
+    def get_tickets(self):
+        """Fetch tickets from SIG"""
+        response = self.session.get(f"{self.base_url}/tickets")
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        tickets = []
+        for row in soup.find_all('tr', class_='ticket-row'):
+            ticket = {
+                'numero': row.find('td', class_='numero').text.strip(),
+                'asunto': row.find('td', class_='asunto').text.strip(),
+                'estado': row.find('td', class_='estado').text.strip(),
+                'prioridad': row.find('td', class_='prioridad').text.strip(),
+            }
+            tickets.append(ticket)
+        
+        return tickets
+```
+
+## Ticket Workflow
+
+<Steps>
+  <Step title="Ticket Creation">
+    User submits service request via web or phone
+  </Step>
+  
+  <Step title="Auto-Assignment">
+    Ticket automatically assigned based on category and location
+    
+    ```python
+    def asignar_ticket(ticket):
+        grupo = GrupoTicket.objects.get(nombre=ticket.area)
+        responsable = grupo.responsables.order_by('?').first()
+        ticket.asignado_a = responsable
+        ticket.save()
+    ```
+  </Step>
+  
+  <Step title="Investigation">
+    Technician investigates issue and updates ticket
+  </Step>
+  
+  <Step title="Resolution">
+    Issue resolved and evidence attached
+  </Step>
+  
+  <Step title="Closure">
+    Ticket closed after user confirmation
+  </Step>
+</Steps>
+
+## Reporting
+
+### SLA Tracking
+
+Monitor response and resolution times:
+
+```python callcenter/views.py
+def sla_report(request):
+    tickets = SolicitudTicket.objects.filter(
+        estado__in=['RESUELTO', 'CERRADO']
+    )
+    
+    # Calculate average resolution time
+    for ticket in tickets:
+        if ticket.fecha_cierre:
+            duration = ticket.fecha_cierre - ticket.fecha_creacion
+            ticket.tiempo_resolucion = duration.total_seconds() / 3600  # hours
+    
+    avg_resolution = sum([t.tiempo_resolucion for t in tickets]) / len(tickets)
+    
+    return render(request, 'sla_report.html', {
+        'tickets': tickets,
+        'avg_resolution': avg_resolution
+    })
+```
+
+## Best Practices
+
+<Tip>
+**Auto-Assignment**: Configure ticket routing rules based on category and location
+</Tip>
+
+<Warning>
+**SIG Sync**: Run synchronization task frequently to keep tickets up-to-date
+</Warning>
+
+<Note>
+**Evidence**: Encourage attaching photos for visual documentation
+</Note>
+
+## Related Modules
+
+<CardGroup cols={3}>
+  <Card title="Maintenance" icon="wrench" href="/modules/maintenance">
+    Convert tickets to work orders
+  </Card>
+  <Card title="Assets" icon="building" href="/modules/assets">
+    Link tickets to equipment
+  </Card>
+  <Card title="Celery Tasks" icon="clock" href="/integration/celery-tasks">
+    Background synchronization
+  </Card>
+</CardGroup>

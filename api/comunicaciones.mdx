@@ -1,0 +1,242 @@
+---
+title: "Communications API"
+description: "Transmittal and communication management endpoints"
+icon: "envelope"
+---
+
+## Overview
+
+The Communications API handles formal communications, transmittals, and document exchange between parties. This is commonly used for RFIs (Requests for Information), memos, and formal document transmittals.
+
+## Authentication
+
+All API requests require Django session authentication. See [Authentication](/api/authentication) for details.
+
+## Endpoints
+
+### Create Transmittal
+
+Create a new transmittal communication.
+
+**Endpoint:** `POST /comunicaciones/api/create-transmittal/`
+
+<ParamField path="tipo_id" type="integer" required>
+  Type of communication (RFI, MEMO, etc.)
+</ParamField>
+
+<ParamField path="asunto" type="string" required>
+  Subject line
+</ParamField>
+
+<ParamField path="cuerpo" type="string" required>
+  Message body content
+</ParamField>
+
+<ParamField path="destinatarios" type="array" required>
+  Array of recipient user IDs
+</ParamField>
+
+<ParamField path="documentos" type="array">
+  Array of document IDs to attach
+</ParamField>
+
+<ParamField path="activos" type="array">
+  Array of asset IDs to reference
+</ParamField>
+
+**Example Request:**
+
+```javascript
+fetch('/comunicaciones/api/create-transmittal/', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-CSRFToken': csrfToken
+  },
+  body: JSON.stringify({
+    tipo_id: 1,  // RFI type
+    asunto: "Request for Information - Equipment Specifications",
+    cuerpo: "Please provide technical specifications for the cooling tower.",
+    destinatarios: [5, 12],  // User IDs
+    documentos: [45, 67],  // Document IDs
+    activos: [100]  // Asset IDs
+  })
+});
+```
+
+**Response:**
+
+<ResponseField name="id" type="integer">
+  Created transmittal ID
+</ResponseField>
+
+<ResponseField name="consecutivo" type="string">
+  Auto-generated consecutive number (e.g., "RFI-2025-0001")
+</ResponseField>
+
+<ResponseField name="estado" type="string">
+  Status: BORRADOR or ENVIADO
+</ResponseField>
+
+<ResponseField name="fecha_envio" type="datetime">
+  Send timestamp (null if draft)
+</ResponseField>
+
+```json Response Example
+{
+  "id": 123,
+  "consecutivo": "RFI-2025-0001",
+  "estado": "ENVIADO",
+  "fecha_envio": "2025-03-06T10:30:00Z"
+}
+```
+
+### List Transmittals
+
+View transmittals (sent and received).
+
+**Endpoint:** `GET /comunicaciones/transmittals/`
+
+**Query Parameters:**
+
+<ParamField path="tipo" type="string">
+  Filter by communication type code
+</ParamField>
+
+<ParamField path="estado" type="string">
+  Filter by status (BORRADOR, ENVIADO)
+</ParamField>
+
+**Response:**
+
+Returns HTML page with transmittal list.
+
+### Transmittal Detail
+
+View complete transmittal details including attachments and recipients.
+
+**Endpoint:** `GET /comunicaciones/transmittals/<comunicado_id>/`
+
+**Response:**
+
+Returns HTML page with:
+- Transmittal header (consecutive, subject, sender, date)
+- Message body
+- Attached documents
+- Referenced assets
+- Recipient list with read status
+- Reply thread
+
+## Data Models
+
+### Comunicado (Transmittal)
+
+```python comunicaciones/models.py
+class Comunicado(models.Model):
+    ESTADOS = (
+        ('BORRADOR', 'Borrador'),
+        ('ENVIADO', 'Enviado'),
+    )
+    
+    tipo = models.ForeignKey('TipoComunicado', on_delete=models.PROTECT)
+    consecutivo = models.CharField(max_length=50, unique=True)
+    asunto = models.CharField(max_length=255)
+    cuerpo = models.TextField()
+    
+    remitente = models.ForeignKey(User, on_delete=models.PROTECT)
+    fecha_envio = models.DateTimeField(blank=True, null=True)
+    estado = models.CharField(max_length=20, choices=ESTADOS)
+    
+    # Reply threading
+    parent = models.ForeignKey('self', on_delete=models.PROTECT, 
+                              null=True, blank=True)
+```
+
+### Destinatario (Recipient)
+
+```python comunicaciones/models.py
+class Destinatario(models.Model):
+    comunicado = models.ForeignKey('Comunicado', on_delete=models.CASCADE)
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE)
+    tipo = models.CharField(max_length=10)  # TO, CC, BCC
+    
+    # Read tracking
+    leido = models.BooleanField(default=False)
+    fecha_lectura = models.DateTimeField(blank=True, null=True)
+```
+
+### AdjuntoComunicado (Attachment)
+
+```python comunicaciones/models.py
+class AdjuntoComunicado(models.Model):
+    comunicado = models.ForeignKey('Comunicado', on_delete=models.CASCADE)
+    
+    # Can attach documents or assets
+    documento = models.ForeignKey('documentos.Documento', 
+                                 on_delete=models.CASCADE,
+                                 null=True, blank=True)
+    activo = models.ForeignKey('activos.Activo',
+                              on_delete=models.CASCADE,
+                              null=True, blank=True)
+    archivo = models.FileField(upload_to='comunicados/', 
+                              blank=True, null=True)
+```
+
+## Transmittal Workflow
+
+<Steps>
+  <Step title="Create Draft">
+    User creates transmittal in draft state
+  </Step>
+  
+  <Step title="Add Recipients">
+    Specify TO, CC, and BCC recipients
+  </Step>
+  
+  <Step title="Attach Documents">
+    Link existing documents or upload new files
+  </Step>
+  
+  <Step title="Send">
+    Change status to ENVIADO, assigns consecutive number
+  </Step>
+  
+  <Step title="Track Reads">
+    System tracks when recipients view the transmittal
+  </Step>
+  
+  <Step title="Reply Thread">
+    Recipients can reply, creating threaded conversations
+  </Step>
+</Steps>
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="RFI Management" icon="circle-question">
+    Formal requests for information with response tracking
+  </Card>
+  <Card title="Document Transmittals" icon="file-export">
+    Formal transmission of technical documents
+  </Card>
+  <Card title="Memos" icon="memo">
+    Internal communications and announcements
+  </Card>
+  <Card title="Change Notices" icon="triangle-exclamation">
+    Notification of changes or updates
+  </Card>
+</CardGroup>
+
+## Related Modules
+
+<CardGroup cols={3}>
+  <Card title="Documents" icon="file" href="/modules/documents">
+    Attach documentation
+  </Card>
+  <Card title="Assets" icon="building" href="/modules/assets">
+    Reference equipment
+  </Card>
+  <Card title="Projects" icon="diagram-project" href="/modules/projects">
+    Link to project communications
+  </Card>
+</CardGroup>

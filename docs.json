@@ -83,7 +83,10 @@
               "api/authentication",
               "api/assets",
               "api/maintenance",
-              "api/documents"
+              "api/documents",
+              "api/inventory",
+              "api/projects",
+              "api/comunicaciones"
             ]
           }
         ]

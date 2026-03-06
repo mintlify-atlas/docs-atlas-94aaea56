@@ -1,0 +1,101 @@
+{
+  "projectType": "saas",
+  "projectName": "Energy CMMS",
+  "projectDescription": "Comprehensive enterprise resource planning system for energy plant operations, asset management, and maintenance",
+  "theme": "linden",
+  "primaryColor": "#0ea5e9",
+  "lightColor": "#38bdf8",
+  "darkColor": "#0284c7",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "introduction",
+              "key-features",
+              "architecture"
+            ]
+          },
+          {
+            "group": "Getting Started",
+            "pages": [
+              "getting-started/installation",
+              "getting-started/configuration",
+              "getting-started/first-steps"
+            ]
+          },
+          {
+            "group": "Core Modules",
+            "pages": [
+              "modules/assets",
+              "modules/maintenance",
+              "modules/budgets",
+              "modules/inventory",
+              "modules/security",
+              "modules/projects",
+              "modules/documents",
+              "modules/callcenter"
+            ]
+          },
+          {
+            "group": "User Guides",
+            "pages": [
+              "guides/asset-management",
+              "guides/maintenance-workflow",
+              "guides/requisitions",
+              "guides/work-permits",
+              "guides/document-control"
+            ]
+          },
+          {
+            "group": "Integration",
+            "pages": [
+              "integration/dynamics-365",
+              "integration/n8n-automation",
+              "integration/minio-storage",
+              "integration/celery-tasks"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/overview",
+              "api/authentication",
+              "api/assets",
+              "api/maintenance",
+              "api/documents"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Asset hierarchy management with technical locations and equipment tracking",
+    "Preventive and corrective maintenance (CMMS) with work orders and scheduling",
+    "Budget control with cost sheet, commitments, and requisition management",
+    "Multi-warehouse inventory with stock tracking and material movements",
+    "Safety management with work permits, risk analysis, and PPE control",
+    "Project tracking with activities, milestones, and Gantt charts",
+    "Document management with version control and AI-powered search",
+    "Integration with Dynamics 365, n8n automation, and MinIO storage"
+  ],
+  "publicApiSurface": [
+    "Asset search and details API",
+    "Work order creation and status updates",
+    "Requisition synchronization endpoints",
+    "Document upload and metadata extraction",
+    "Material request API",
+    "Activity creation and project management",
+    "Transmittal creation and tracking",
+    "Ticket management endpoints"
+  ]
+}
